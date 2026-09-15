@@ -17,9 +17,7 @@ class ExtensionDetector:
     def detect_true_extension(self, file_path: Path) -> str:
         current_ext = file_path.suffix.lower()
 
-        # ------------------------------------------------------------------
-        # Phase 1: High-Confidence Magika Classifier
-        # ------------------------------------------------------------------
+        # High-Confidence Magika Classifier
         try:
             res = self.magika.identify_path(file_path)
             if res.score >= 0.75:
@@ -34,9 +32,7 @@ class ExtensionDetector:
         except Exception:
             pass
 
-        # ------------------------------------------------------------------
-        # Phase 2: C-Engine Magic Byte Inspection (python-magic / libmagic)
-        # ------------------------------------------------------------------
+        # C-Engine Magic Byte Inspection (python-magic / libmagic)
         try:
             mime_type = self.mime_engine.from_file(str(file_path))
             direct_mime_map = {
@@ -65,9 +61,7 @@ class ExtensionDetector:
         except Exception:
             pass
 
-        # ------------------------------------------------------------------
-        # Phase 3: Text Schema Spec Parsers
-        # ------------------------------------------------------------------
+        # Text Schema Spec Parsers
         return self._validate_text_schema(file_path, current_ext)
 
     def _normalize_magika_label(self, label: str) -> str:
@@ -93,7 +87,7 @@ class ExtensionDetector:
         if not raw_bytes.strip():
             return current_ext
 
-        # 1. JSON (orjson)
+        # JSON (orjson)
         try:
             orjson.loads(raw_bytes)
             return ".json"
@@ -105,7 +99,7 @@ class ExtensionDetector:
         except Exception:
             return current_ext
 
-        # 2. XML (defusedxml)
+        # XML (defusedxml)
         if text_content.startswith("<") and not text_content.startswith("<!--"):
             try:
                 SafeET.fromstring(text_content)
@@ -113,7 +107,7 @@ class ExtensionDetector:
             except Exception:
                 pass
 
-        # 3. HTML (BeautifulSoup + html5lib)
+        # HTML (BeautifulSoup + html5lib)
         if any(
             tag in text_content.lower()
             for tag in ("<html", "<body", "<!--", "<div")
@@ -125,7 +119,7 @@ class ExtensionDetector:
             except Exception:
                 pass
 
-        # 4. Tabular CSV (Polars)
+        # Tabular CSV (Polars)
         try:
             df = pl.read_csv(
                 file_path,

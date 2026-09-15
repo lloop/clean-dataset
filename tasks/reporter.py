@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any
+from schemas.audit_schema import FileAuditCollections
 
 
 class AuditReporter:
@@ -14,8 +15,8 @@ class AuditReporter:
     def generate_report(
         self,
         stats: Dict[str, int],
-        removed_duplicates: List[str],
-        repaired_extensions: List[str],
+        audit_records: FileAuditCollections,
+        # repaired_extensions: List[str],
     ) -> Path:
         """Writes audit_summary.json and audit_summary.md into the clean output directory."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -24,14 +25,17 @@ class AuditReporter:
         report_data: Dict[str, Any] = {
             "timestamp": timestamp,
             "summary": stats,
-            "quarantined_duplicates": removed_duplicates,
-            "repaired_extensions": repaired_extensions,
+            "quarantined_duplicates": audit_records.removed_duplicates,
+            "repaired_extensions": audit_records.repaired_extensions,
+            "character_corrupted": audit_records.character_corrupted,
+            "structure_corrupted": audit_records.structure_corrupted
         }
 
         # Write JSON Report
         json_path = self.output_dir / "audit_summary.json"
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(report_data, f, indent=2)
+
 
         # Write Markdown Report
         md_path = self.output_dir / "audit_summary.md"
@@ -43,7 +47,7 @@ class AuditReporter:
     def _format_markdown(self, data: Dict[str, Any]) -> str:
         stats = data["summary"]
         duplicates = data["quarantined_duplicates"]
-        repaired = data["repaired_extensions"]
+        repaired_extensions = data["repaired_extensions"]
 
         md_lines = [
             "# Dataset Cleaning Audit Report",
@@ -63,8 +67,22 @@ class AuditReporter:
             md_lines.append("_No duplicate files identified._")
 
         md_lines.append("\n## Repaired Extensions")
-        if repaired:
-            for item in repaired:
+        if repaired_extensions:
+            for item in repaired_extensions:
+                md_lines.append(f"- `{item}`")
+        else:
+            md_lines.append("_No extensions required repair._")
+            
+        md_lines.append("\n## Structure Corruptions")
+        if repaired_extensions:
+            for item in repaired_extensions:
+                md_lines.append(f"- `{item}`")
+        else:
+            md_lines.append("_No extensions required repair._")
+            
+        md_lines.append("\n## Character Corruptions")
+        if repaired_extensions:
+            for item in repaired_extensions:
                 md_lines.append(f"- `{item}`")
         else:
             md_lines.append("_No extensions required repair._")
