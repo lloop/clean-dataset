@@ -1,0 +1,8 @@
+beautifulsoup4==4.12.3
+defusedxml==0.7.1
+html5lib==1.1
+magika==0.6.2
+orjson==3.10.15
+pandas==2.2.3
+polars==1.22.0
+python-magic==0.4.27

@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any
-from schemas.audit_schema import FileAuditCollections
+from schemas.audit_schema import FileAuditCollections, PipelineAuditSummary
 
 
 class AuditReporter:
@@ -14,9 +14,8 @@ class AuditReporter:
 
     def generate_report(
         self,
-        stats: Dict[str, int],
-        audit_records: FileAuditCollections,
-        # repaired_extensions: List[str],
+        audit_summary: PipelineAuditSummary,
+        audit_records: FileAuditCollections
     ) -> Path:
         """Writes audit_summary.json and audit_summary.md into the clean output directory."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -24,67 +23,17 @@ class AuditReporter:
 
         report_data: Dict[str, Any] = {
             "timestamp": timestamp,
-            "summary": stats,
-            "quarantined_duplicates": audit_records.removed_duplicates,
-            "repaired_extensions": audit_records.repaired_extensions,
-            "character_corrupted": audit_records.character_corrupted,
-            "structure_corrupted": audit_records.structure_corrupted
+            "total_processed": audit_summary.total_processed,
+            "repaired_extensions": audit_summary.corrupted_extensions,
+            "character_corrupted": audit_summary.character_corrupted,
+            "structure_corrupted": audit_summary.structure_corrupted,
+            "duplicates": audit_summary.duplicates,
+            "clean_saved": audit_summary.clean_saved,
         }
 
-        # Write JSON Report
+        # Write JSON report
         json_path = self.output_dir / "audit_summary.json"
         with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(report_data, f, indent=2)
+            json.dump(report_data, f, indent=2) 
 
-
-        # Write Markdown Report
-        md_path = self.output_dir / "audit_summary.md"
-        with open(md_path, "w", encoding="utf-8") as f:
-            f.write(self._format_markdown(report_data))
-
-        return md_path
-
-    def _format_markdown(self, data: Dict[str, Any]) -> str:
-        stats = data["summary"]
-        duplicates = data["quarantined_duplicates"]
-        repaired_extensions = data["repaired_extensions"]
-
-        md_lines = [
-            "# Dataset Cleaning Audit Report",
-            f"**Execution Timestamp:** `{data['timestamp']}`\n",
-            "## Processing Metrics",
-            f"- **Total Evaluated Files:** {stats.get('total_processed', 0)}",
-            f"- **Duplicates Quarantined:** {stats.get('duplicates_removed', 0)}",
-            f"- **Extensions Repaired:** {stats.get('repaired_extensions', 0)}",
-            f"- **Clean Valid Files:** {stats.get('clean_saved', 0)}\n",
-            "## Quarantined Duplicates",
-        ]
-
-        if duplicates:
-            for item in duplicates:
-                md_lines.append(f"- `{item}`")
-        else:
-            md_lines.append("_No duplicate files identified._")
-
-        md_lines.append("\n## Repaired Extensions")
-        if repaired_extensions:
-            for item in repaired_extensions:
-                md_lines.append(f"- `{item}`")
-        else:
-            md_lines.append("_No extensions required repair._")
-            
-        md_lines.append("\n## Structure Corruptions")
-        if repaired_extensions:
-            for item in repaired_extensions:
-                md_lines.append(f"- `{item}`")
-        else:
-            md_lines.append("_No extensions required repair._")
-            
-        md_lines.append("\n## Character Corruptions")
-        if repaired_extensions:
-            for item in repaired_extensions:
-                md_lines.append(f"- `{item}`")
-        else:
-            md_lines.append("_No extensions required repair._")
-
-        return "\n".join(md_lines)
+        return json_path

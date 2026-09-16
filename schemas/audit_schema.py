@@ -13,10 +13,10 @@ class FileAuditCollections:
 @dataclass
 class PipelineAuditSummary:
     total_processed: int = 0
-    duplicates_removed: int = 0
+    duplicates: int = 0
     character_corrupted: int = 0
     structure_corrupted: int = 0
-    repaired_extensions: int = 0
+    corrupted_extensions: int = 0
     clean_saved: int = 0
     collections: FileAuditCollections = field(
         default_factory=FileAuditCollections

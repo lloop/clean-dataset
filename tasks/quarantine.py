@@ -1,6 +1,7 @@
 # tasks/quarantine.py
 import shutil
 from pathlib import Path
+from typing import Optional
 
 
 class QuarantineManager:
@@ -28,13 +29,13 @@ class QuarantineManager:
         self.corrupt_char_dir.mkdir(parents=True, exist_ok=True)
 
 
-    def save_valid_file(self, file_path: Path, target_path: Path | None = None) -> Path:
+    def save_valid_file(self, file_path: Path, target_path: Optional[Path] = None) -> Path:
         """Copies valid files into subfolders grouped by file extension."""
-        ext = file_path.suffix.lower().replace(".", "") or "no_extension"
+        final_path = target_path or file_path
+        ext = final_path.suffix.lower().replace(".", "") or "no_extension"
         target_folder = self.valid_dir / ext
         target_folder.mkdir(exist_ok=True)
-        file_name = target_path.name if target_path else file_path.name
-        dest_path = target_folder / file_name
+        dest_path = target_folder / final_path.name
         shutil.copyfile(file_path, dest_path)
         return dest_path
 

@@ -1,6 +1,4 @@
 import argparse
-import csv
-import json
 import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -26,19 +24,17 @@ class DatasetCleaner:
     def __init__(self, source_dir: str, clean_dir: str):
         self.source_dir = Path(source_dir)
         self.clean_dir = Path(clean_dir)
-        # self.duplicates_removed: List[str] = []
-        # self.repaired_extensions: List[str] = []
-        # self.structure_corrupted: List[str] = []
-        # self.character_corrupted: List[str] = []
 
         self.audit_records = FileAuditCollections()
+        self.audit_summary = PipelineAuditSummary()
         self.quarantine_mgr = QuarantineManager(self.clean_dir)
         self.reporter = AuditReporter(self.clean_dir)
         self.deduplicator = FileDeduplicator()
         self.extension_detector = ExtensionDetector()
         self.character_detector = CharacterCorruptionDetector()
+        self.structure_detector = StructureCorruptionDetector()
 
-    def process(self) -> Dict[str, int]:
+    def process(self) -> PipelineAuditSummary:
         """Executes deduplication, corruption detection, extension repair, and directory cleanup."""
         if not self.source_dir.exists():
             raise FileNotFoundError(
@@ -53,29 +49,28 @@ class DatasetCleaner:
         # Setup destination valid/ and quarantine/ structures
         self.quarantine_mgr.setup_directories()
 
-        stats = {
-            "total_processed": 0,
-            "duplicates_removed": 0,
-            "corrupted_quarantined": 0,
-            "character_corrupted": 0,
-            "structural_corrupted": 0,
-            "clean_saved": 0,
-            "repaired_extensions": 0,
-        }
+        # stats = {
+        #     "total_processed": 0,
+        #     "duplicates": 0,
+        #     "corrupted_quarantined": 0,
+        #     "character_corrupted": 0,
+        #     "structural_corrupted": 0,
+        #     "clean_saved": 0,
+        #     "repaired_extensions": 0,
+        # }
 
         for file_path in self.source_dir.iterdir():
             # Skip directories or manifest file during deduplication pass
             if file_path.is_dir() or file_path.name == "manifest.json":
                 continue
 
-            stats["total_processed"] += 1
+            self.audit_summary.total_processed += 1
 
             # Deduplication via Hash Matching
             if self.deduplicator.is_duplicate(file_path):
-                # self.duplicates_removed.append(file_path.name)
                 self.audit_records.removed_duplicates.append(file_path.name)
                 self.quarantine_mgr.quarantine_duplicate(file_path)
-                stats["duplicates_removed"] += 1
+                self.audit_summary.duplicates += 1
                 continue
 
             # Detect binary files
@@ -91,72 +86,42 @@ class DatasetCleaner:
                     char_result = self.character_detector.detect_character_corruption(content)
                     if char_result["is_corrupted"]:
                         labels = ", ".join(char_result["detected_corruptions"])
-                        # self.character_corrupted.append(f"{file_path.name} [Char: {labels}]")
                         self.audit_records.character_corrupted.append(f"{file_path.name} [Char: {labels}]")
                         self.quarantine_mgr.quarantine_corrupt_char(file_path)
-                        stats["character_corrupted"] += 1
-                        stats["corrupted_quarantined"] += 1
+                        self.audit_summary.character_corrupted += 1
                         continue
-                except Exception:
-                    pass
+                except OSError as error:
+                    print(f"ERROR reading {file_path}: {error}")
+                    self.quarantine_mgr.quarantine_corrupt_char(file_path, reason="read_error")
+                    continue
 
             # Structural Corruption Pass
-            is_structurally_corrupt = self._check_structural_corruption(file_path, true_ext)
+            is_structurally_corrupt = self.structure_detector.is_structurally_corrupt(file_path, true_ext)
             if is_structurally_corrupt:
-                # self.structure_corrupted.append(f"{file_path.name} [Structural]")
                 self.audit_records.structure_corrupted.append(f"{file_path.name} [Structural]")
                 self.quarantine_mgr.quarantine_corrupt_struct(file_path)
-                stats["structural_corrupted"] += 1
-                stats["corrupted_quarantined"] += 1
+                self.audit_summary.structure_corrupted += 1
                 continue
 
             # Extension Repair and Save
             current_ext = file_path.suffix.lower()
             if current_ext != true_ext:
                 repaired_path = file_path.with_suffix(true_ext)
-                # self.repaired_extensions.append(
-                #     f"{file_path.name} -> {repaired_path.name}"
-                # )
                 self.audit_records.repaired_extensions.append(f"{file_path.name} -> {repaired_path.name}")
                 self.quarantine_mgr.save_valid_file(file_path, repaired_path)
-                stats["repaired_extensions"] += 1
+                self.audit_summary.corrupted_extensions += 1
+                self.audit_summary.clean_saved += 1
             else:
                 self.quarantine_mgr.save_valid_file(file_path)
-                stats["clean_saved"] += 1
+                self.audit_summary.clean_saved += 1
 
         # Generate output reports inside output folder
         self.reporter.generate_report(
-            stats, self.audit_records
+            self.audit_summary, self.audit_records
         )
-        # self.reporter.generate_report(
-        #     stats, self.duplicates_removed, self.repaired_extensions
-        # )
 
-        return stats
-
-    def _check_structural_corruption(self, file_path: Path, ext: str) -> bool:
-        """Validates structural integrity based on the file format."""
-        try:
-            if ext == ".json":
-                with open(file_path, "r", encoding="utf-8") as f:
-                    json.load(f)
-            elif ext == ".xml":
-                with open(file_path, "r", encoding="utf-8") as f:
-                    ET.fromstring(f.read())
-            elif ext == ".csv":
-                with open(file_path, "r", encoding="utf-8") as f:
-                    reader = csv.reader(f)
-                    rows = list(reader)
-                    if rows:
-                        expected_cols = len(rows[0])
-                        for row in rows:
-                            if len(row) != expected_cols:
-                                return True
-            return False
-        except Exception:
-            # Syntax or parser failure indicates structural corruption
-            return True
-
+        # self.audit_summary
+        return self.audit_summary
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -179,12 +144,11 @@ if __name__ == "__main__":
 
     print("==================================================")
     print("Data Cleaning Pass Complete:")
-    print(f"  Total Evaluated : {results['total_processed']}")
-    print(f"  Duplicates Cut  : {results['duplicates_removed']}")
-    print(f"  Extensions Repaired  : {results['repaired_extensions']}")
-    print(f"  Character Corruptions: {results['character_corrupted']}")
-    print(f"  Structural Corruptions: {results['structural_corrupted']}")
-    print(f"  Total Quarantined: {results['corrupted_quarantined']}")
-    print(f"  Clean Files Kept: {results['clean_saved']}")
+    print(f"  Total Evaluated : {results.total_processed}")
+    print(f"  Duplicates Cut  : {results.duplicates}")
+    print(f"  Extensions Repaired  : {results.corrupted_extensions}")
+    print(f"  Character Corruptions: {results.character_corrupted}")
+    print(f"  Structural Corruptions: {results.structure_corrupted}")
+    print(f"  Clean Files Kept: {results.clean_saved}")
     print(f"Cleaned dataset output saved to: '{args.clean}'")
     print("==================================================")
