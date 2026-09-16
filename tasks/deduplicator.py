@@ -1,21 +1,23 @@
 import hashlib
 from pathlib import Path
-from typing import Set
+from typing import Set, Dict
 
 
 class FileDeduplicator:
     """Manages SHA-256 exact binary duplicate detection."""
 
     def __init__(self):
-        self.seen_hashes: Set[str] = set()
+        # hash -> filename
+        self.seen_hashes: Dict[str, str] = {}
 
-    def is_duplicate(self, file_path: Path) -> bool:
+    def is_duplicate(self, file_path: Path) -> str | None:
         """Computes hash and returns True if file has already been seen."""
         file_hash = self._compute_hash(file_path)
         if file_hash in self.seen_hashes:
-            return True
-        self.seen_hashes.add(file_hash)
-        return False
+            return self.seen_hashes[file_hash]
+
+        self.seen_hashes[file_hash] = file_path.name
+        return None
 
     def _compute_hash(self, file_path: Path) -> str:
         """Computes SHA-256 hash of a file for exact duplicate detection."""
