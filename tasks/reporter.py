@@ -29,6 +29,11 @@ class AuditReporter:
             manifest,
             audit_summary.list_detected_files["removed_duplicates"]
         )
+        
+        character_cross_reference = self.cross_reference.compare_character_corrupted(
+            manifest,
+            audit_summary.list_detected_files["character_corrupted"]
+        )
 
         report_data: Dict[str, Any] = {
             "timestamp": timestamp,
@@ -38,9 +43,10 @@ class AuditReporter:
             "structure_corrupted": audit_summary.structure_corrupted,
             "duplicates": audit_summary.duplicates,
             "clean_saved": audit_summary.clean_saved,
-            "list_detected_files": audit_summary.list_detected_files,
+            "detected_files_list": audit_summary.list_detected_files,
             "cross_reference": {
-                "duplicates": duplicate_cross_reference
+                "duplicates": duplicate_cross_reference,
+                "character_corrupted": character_cross_reference
             }
         }
 

@@ -11,8 +11,14 @@ class FileDeduplicator:
         self.seen_hashes: Dict[str, str] = {}
 
     def is_duplicate(self, file_path: Path) -> str | None:
-        """Computes hash and returns True if file has already been seen."""
+        # Ignore 0-byte files if they shouldn't be counted as binary duplicates
+        if file_path.stat().st_size == 0:
+            return None
+
         file_hash = self._compute_hash(file_path)
+        if not file_hash:
+            return None
+
         if file_hash in self.seen_hashes:
             return self.seen_hashes[file_hash]
 

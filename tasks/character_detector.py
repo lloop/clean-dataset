@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
@@ -13,10 +14,15 @@ class CharacterCorruptionDetector:
     ) -> Dict[str, Any]:
         """Inspects text content for character encoding corruption signatures."""
         if isinstance(content, bytes):
-            try:
+            # Check for raw byte-level replacement chars before decoding alters them
+            if b"\xef\xbf\xbd" in content:
                 text_content = content.decode("utf-8", errors="replace")
-            except Exception:
-                text_content = str(content)
+            else:
+                try:
+                    text_content = content.decode("utf-8")
+                except Exception:
+                    # Fallback to latin-1 to preserve byte-to-char mapping for mojibake checks
+                    text_content = content.decode("latin-1", errors="replace")
         else:
             text_content = content
 
@@ -53,5 +59,10 @@ class CharacterCorruptionDetector:
             "Ã ",
             "Ã¨",
             "Ã±",
+            "â€–",
+            "â€”",
+            "Ã§",
+            "Ã\xa0",
+            "Ã¢",
         ]
         return any(sig in text for sig in mojibake_signatures)

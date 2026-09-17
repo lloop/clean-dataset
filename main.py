@@ -61,43 +61,92 @@ class DatasetCleaner:
             # Deduplication via Hash Matching
             matched_file = self.deduplicator.is_duplicate(file_path)
             if matched_file:
-                self.quarantine_mgr.quarantine_duplicate(file_path)
+                
+                # self.quarantine_mgr.quarantine_duplicate(file_path)
                 
                 self.audit_summary.list_detected_files["removed_duplicates"].append(
                     {"file": file_path.name, "matched_file": matched_file}
                 )
                 
                 self.audit_summary.duplicates += 1
-                continue
+                # continue
 
             # Detect binary files
             true_ext = self.extension_detector.detect_true_extension(file_path)
             is_binary = true_ext in [".jpg", ".jpeg", ".png", ".gif", ".ico"]
 
-            # Character Corruption Pass
+            
             if not is_binary:
-                try:
-                    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                # Character Corruption Pass
+                try:                     
+                    # Passes raw bytes directly
+                    with open(file_path, "rb") as f:
                         content = f.read()
 
                     char_result = self.character_detector.detect_character_corruption(content)
+                    
+                    # # TEMPORARY DEBUG PRINT
+                    # if any(name in str(file_path) for name in ["statement_copy.csv", "summary_v2.txt", "agenda_final_backup.html"]):
+                    #     print(f"\n--- DEBUG: {file_path} ---")
+                    #     print(f"Type of content: {type(content)}")
+                    #     print(f"Raw byte sample: {repr(content[:100])}")
+                    #     print(f"Detector Output: {char_result}")
+                        
+                        
+                    # TEMPORARY DEBUG PRINT    
+                    # if file_path.name in ["invoice (1).py", "log_copy_backup.json"]:
+                    #     print(f"\n--- FULL FILE DUMP: {file_path.name} ---")
+                    #     text = content.decode("utf-8", errors="replace")
+                    #     for line_num, line in enumerate(text.splitlines(), start=1):
+                    #         # Print lines that contain non-standard or unusual character ranges
+                    #         if any(not (32 <= ord(c) <= 126 or c in "\r\n\t") for c in line) or "Ã" in line or "â" in line:
+                    #             print(f"Line {line_num}: {repr(line)}")
+                  
+                  
+                  
+                    import hashlib
+
+                    def get_hash(path):
+                        with open(path, "rb") as f:
+                            return hashlib.sha256(f.read()).hexdigest()
+
+                    p1 = DIRTY_DIR / "invoice (1).py"
+                    p2 = DIRTY_DIR / "invoice_1.py"
+
+                    if p1.exists() and p2.exists():
+                        print(f"invoice (1).py hash: {get_hash(p1)}")
+                        print(f"invoice_1.py hash:   {get_hash(p2)}")
+                        print(f"Hashes Match? {get_hash(p1) == get_hash(p2)}")
+                  
+                  
+                  
+                  
+                                
+         
                     if char_result["is_corrupted"]:
                         labels = ", ".join(char_result["detected_corruptions"])
-                        # self.audit_records.character_corrupted.append(f"{file_path.name} [Char: {labels}]")
-                        self.quarantine_mgr.quarantine_corrupt_char(file_path)
-                        self.audit_summary.list_detected_files["character_corrupted"].append(f"{file_path.name} [Character: {labels}]")
+                        
+                        # self.quarantine_mgr.quarantine_corrupt_char(file_path)
+                        
+                        self.audit_summary.list_detected_files["character_corrupted"].append(
+                            {"file": file_path.name, "corruption": labels}
+                        )
+                            
                         self.audit_summary.character_corrupted += 1
                         continue
                 except OSError as error:
                     print(f"ERROR reading {file_path}: {error}")
-                    self.quarantine_mgr.quarantine_corrupt_char(file_path, reason="read_error")
+                    
+                    # self.quarantine_mgr.quarantine_corrupt_char(file_path, reason="read_error")
+                    
                     continue
 
                 # Structural Corruption Pass
                 struct_label = self.structure_detector.is_structurally_corrupt(file_path, true_ext)
                 if struct_label:
-                    # self.audit_records.structure_corrupted.append(f"{file_path.name} [Structural]")
-                    self.quarantine_mgr.quarantine_corrupt_struct(file_path)
+                    
+                    # self.quarantine_mgr.quarantine_corrupt_struct(file_path)
+                    
                     self.audit_summary.list_detected_files["structure_corrupted"].append(f"{file_path.name} [Structural: {struct_label}]")
                     self.audit_summary.structure_corrupted += 1
                     continue
@@ -106,13 +155,16 @@ class DatasetCleaner:
             current_ext = file_path.suffix.lower()
             if current_ext != true_ext:
                 repaired_path = file_path.with_suffix(true_ext)
-                # self.audit_records.repaired_extensions.append(f"{file_path.name} -> {repaired_path.name}")
-                self.quarantine_mgr.save_valid_file(file_path, repaired_path)
+                
+                # self.quarantine_mgr.save_valid_file(file_path, repaired_path)
+                
                 self.audit_summary.list_detected_files["repaired_extensions"].append(f"{file_path.name} -> {repaired_path.name}")
                 self.audit_summary.corrupted_extensions += 1
                 self.audit_summary.clean_saved += 1
             else:
-                self.quarantine_mgr.save_valid_file(file_path)
+                
+                # self.quarantine_mgr.save_valid_file(file_path)
+                
                 self.audit_summary.clean_saved += 1
                 
         manifest = self.manifest_loader.load()
@@ -120,7 +172,6 @@ class DatasetCleaner:
         # Generate output reports inside output folder
         self.reporter.generate_report(
             self.audit_summary, 
-            # self.audit_records,
             manifest
         )
 
