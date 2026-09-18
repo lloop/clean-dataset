@@ -1,4 +1,6 @@
-# Dataset Cleaning Pipeline
+# Shampoo and Conditiner
+
+Do your files have split ends? At root level, are you plagued with zero byte dandruf? Than Shampoo and Conditioner is for you!
 
 A Python pipeline for evaluating a deliberately messy, multi-format dataset. It identifies duplicate files, detects common file corruptions, repairs misleading file extensions when the content can be classified, copies valid files into an organized output directory, and records an audit trail of the run.
 
