@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Union
 
 class CharacterCorruptionDetector:
     """Detects character-level encoding corruptions including null bytes,
-
     replacement characters, and mojibake.
     """
 

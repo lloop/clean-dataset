@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Union, Tuple
+from typing import List, Dict, Union, Tuple, Any
 
 # @dataclass
 # class FileAuditCollections:
@@ -17,11 +17,11 @@ class PipelineAuditSummary:
     structure_corrupted: int = 0
     corrupted_extensions: int = 0
     clean_saved: int = 0
-    list_detected_files: Dict[str, List[Union[str, Dict[str, str]]]] = field(
+    list_detected_files: Dict[str, List[Any]] = field(
         default_factory=lambda: {
-            "removed_duplicates": [],
-            "repaired_extensions": [],
-            "character_corrupted": [],
-            "structure_corrupted": [],
+            "detected_duplicates": [],
+            "detected_extensions": [],
+            "detected_character_corrupted": [],
+            "detected_structure_corrupted": [],
         }
     )

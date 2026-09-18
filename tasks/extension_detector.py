@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any, Dict, Union
 import magic
 from bs4 import BeautifulSoup
 import defusedxml.ElementTree as SafeET
@@ -13,6 +14,37 @@ class ExtensionDetector:
     def __init__(self):
         self.magika = Magika()
         self.mime_engine = magic.Magic(mime=True)
+
+    def detect_extension_scramble(
+        self, file_path: Union[str, Path]
+    ) -> Dict[str, Any]:
+        """Inspects file path for extension scrambling and returns detection results."""
+        path = Path(file_path)
+        declared_ext = path.suffix.lower()
+
+        try:
+            detected_ext = self.detect_true_extension(path)
+
+            aliases = {".jpeg": ".jpg", ".htm": ".html", ".text": ".txt"}
+            norm_declared = aliases.get(declared_ext, declared_ext)
+            norm_detected = aliases.get(detected_ext, detected_ext)
+
+            is_scrambled = norm_declared != norm_detected
+
+            return {
+                "is_scrambled": is_scrambled,
+                "detected_extension": detected_ext,
+                "declared_extension": declared_ext,
+                "error_message": None,
+            }
+
+        except Exception as e:
+            return {
+                "is_scrambled": False,
+                "detected_extension": declared_ext,
+                "declared_extension": declared_ext,
+                "error_message": str(e),
+            }
 
     def detect_true_extension(self, file_path: Path) -> str:
         current_ext = file_path.suffix.lower()

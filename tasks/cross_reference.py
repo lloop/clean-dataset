@@ -114,7 +114,154 @@ class CrossReference:
         return {
             "manifest_count": len(manifest_corrupted),
             "detected_count": len(detected_set),
-            "true_positive_count": len(true_positives_set),
+            "false_positive_count": len(false_positives),
+            "false_negative_count": len(false_negatives),
+            "false_positives": false_positives,
+            "false_negatives": false_negatives
+        }
+        
+    def compare_structure_corrupted(
+        self,
+        manifest: Dict[str, Any],
+        detected_corruptions: Sequence[Union[str, Mapping[str, Optional[str]]]]
+    ) -> Dict[str, Any]:
+        """
+        Cross-references detected structure corruptions against manifest ground truth.
+        Uses size_bytes directly from the manifest to filter out 0-byte files.
+        """
+        
+        # Build lookup for manifest file sizes and structure corruption labels
+        manifest_records = {
+            record["filename"]: {
+                "size_bytes": record.get("size_bytes", 0),
+                "label": record.get("structure_corruption_label")
+            }
+            for record in manifest.get("files", [])
+            if "filename" in record
+        }
+
+        # Ground truth set: files with structure corruption label AND size_bytes > 0
+        manifest_corrupted = {
+            filename
+            for filename, data in manifest_records.items()
+            if data["label"] not in (None, "none", "") and data["size_bytes"] > 0
+        }
+
+        # Map detected corruption items to extract filename and optional metadata payload
+        detected_map: Dict[str, Mapping[str, Optional[str]]] = {}
+        for item in detected_corruptions:
+            if isinstance(item, Mapping):
+                filename = item.get("file") or item.get("filename")
+                payload = item
+            else:
+                filename = item
+                payload = {"file": str(item)}
+
+            if filename and manifest_records.get(filename, {}).get("size_bytes", 0) > 0:
+                detected_map[filename] = payload
+                
+        detected_set = set(detected_map.keys())
+
+        # Set differences
+        false_positives_set = detected_set - manifest_corrupted
+        false_negatives_set = manifest_corrupted - detected_set
+        true_positives_set = detected_set & manifest_corrupted
+
+        # Build structured dictionary entries for false positives and false negatives
+        false_positives = [
+            {
+                "file": filename,
+                "label": manifest_records.get(filename, {}).get("label") or "none",
+                "detected_details": detected_map[filename]
+            }
+            for filename in sorted(false_positives_set)
+        ]
+        
+        false_negatives = [
+            {
+                "file": filename,
+                "label": manifest_records[filename]["label"]
+            }
+            for filename in sorted(false_negatives_set)
+        ]
+
+        return {
+            "manifest_count": len(manifest_corrupted),
+            "detected_count": len(detected_set),
+            "false_positive_count": len(false_positives),
+            "false_negative_count": len(false_negatives),
+            "false_positives": false_positives,
+            "false_negatives": false_negatives
+        }
+    
+    def compare_extensions_scrambled(
+        self,
+        manifest: Dict[str, Any],
+        detected_scrambles: Sequence[Union[str, Mapping[str, Optional[str]]]]
+    ) -> Dict[str, Any]:
+        """
+        Cross-references detected scrambled extensions against manifest ground truth.
+        Uses size_bytes directly from the manifest to filter out 0-byte files.
+        """
+        # Build lookup for manifest file sizes and extension scrambled labels
+        manifest_records = {
+            record["filename"]: {
+                "size_bytes": record.get("size_bytes", 0),
+                "extension_scrambled": record.get("extension_scrambled"),
+                "original_extension": record.get("original_extension")
+            }
+            for record in manifest.get("files", [])
+            if "filename" in record
+        }
+
+        # Ground truth set: files with extension scrambled label AND size_bytes > 0
+        manifest_scrambled = {
+            filename
+            for filename, data in manifest_records.items()
+            if data["extension_scrambled"] and data["size_bytes"] > 0
+        }
+
+        # Map detected corruption items to extract filename and optional metadata payload
+        detected_map: Dict[str, Mapping[str, Optional[str]]] = {}
+        for item in detected_scrambles:
+            if isinstance(item, Mapping):
+                filename = item.get("file") or item.get("filename")
+                payload = item
+            else:
+                filename = item
+                payload = {"file": str(item)}
+
+            if filename and manifest_records.get(filename, {}).get("size_bytes", 0) > 0:
+                detected_map[filename] = payload
+
+        detected_set = set(detected_map.keys())
+
+        # Set differences
+        false_positives_set = detected_set - manifest_scrambled
+        false_negatives_set = manifest_scrambled - detected_set
+        true_positives_set = detected_set & manifest_scrambled
+
+        # Build structured dictionary entries for false positives and false negatives
+        false_positives = [
+            {
+                "file": filename,
+                "original_extension": manifest_records.get(filename, {}).get("original_extension") or "none",
+                "detected_details": detected_map[filename]
+            }
+            for filename in sorted(false_positives_set)
+        ]
+
+        false_negatives = [
+            {
+                "file": filename,
+                "original_extension": manifest_records[filename]["original_extension"]
+            }
+            for filename in sorted(false_negatives_set)
+        ]
+
+        return {
+            "manifest_count": len(manifest_scrambled),
+            "detected_count": len(detected_set),
             "false_positive_count": len(false_positives),
             "false_negative_count": len(false_negatives),
             "false_positives": false_positives,
