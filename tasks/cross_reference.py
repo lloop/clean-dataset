@@ -1,9 +1,33 @@
 # tasks/cross_reference.py
-from typing import Dict, Any, List, Union, Optional, Sequence, Mapping
-from pathlib import Path
-
+from typing import Dict, Any, Sequence, List, Union, Mapping, Optional
+from schemas.file_schema import FileRecords
 
 class CrossReference:
+
+    def compare(
+        self,
+        manifest: Dict[str, Any],
+        file_records: Sequence[FileRecords],
+    ) -> Dict[str, Any]:
+
+        return {
+            "duplicates": self.compare_duplicates(
+                manifest,
+                file_records,
+            ),
+            "character_corruption": self.compare_character_corrupted(
+                manifest,
+                file_records,
+            ),
+            "structural_corruption": self.compare_structure_corrupted(
+                manifest,
+                file_records,
+            ),
+            "extensions": self.compare_extensions_scrambled(
+                manifest,
+                file_records,
+            ),
+        }
 
     def compare_duplicates(
         self,
@@ -50,55 +74,43 @@ class CrossReference:
     def compare_character_corrupted(
         self,
         manifest: Dict[str, Any],
-        detected_corruptions: Sequence[Union[str, Mapping[str, Optional[str]]]]
+        file_records: list[FileRecords],
     ) -> Dict[str, Any]:
-        """
-        Cross-references detected character corruptions against manifest ground truth.
-        Uses size_bytes directly from the manifest to filter out 0-byte files.
-        """
-        # Build lookup for manifest file sizes and character corruption labels
+
         manifest_records = {
             record["filename"]: {
                 "size_bytes": record.get("size_bytes", 0),
-                "label": record.get("character_corruption_label")
+                "label": record.get("character_corruption_label"),
             }
             for record in manifest.get("files", [])
             if "filename" in record
         }
 
-        # Ground truth set: files with character corruption label AND size_bytes > 0
         manifest_corrupted = {
             filename
             for filename, data in manifest_records.items()
-            if data["label"] not in (None, "none", "") and data["size_bytes"] > 0
+            if (
+                data["label"] not in (None, "none", "")
+                and data["size_bytes"] > 0
+            )
         }
 
-        # Map detected corruption items to extract filename and optional metadata payload
-        detected_map: Dict[str, Mapping[str, Optional[str]]] = {}
-        for item in detected_corruptions:
-            if isinstance(item, Mapping):
-                filename = item.get("file") or item.get("filename")
-                payload = item
-            else:
-                filename = item
-                payload = {"file": str(item)}
+        detected_records = {
+            record.filename: record
+            for record in file_records
+            if record.character_corruption
+        }
 
-            if filename and manifest_records.get(filename, {}).get("size_bytes", 0) > 0:
-                detected_map[filename] = payload
+        detected_set = set(detected_records)
 
-        detected_set = set(detected_map.keys())
-
-        # Set differences
         false_positives_set = detected_set - manifest_corrupted
         false_negatives_set = manifest_corrupted - detected_set
-        true_positives_set = detected_set & manifest_corrupted
 
-        # Build structured dictionary entries for false positives and false negatives
         false_positives = [
             {
                 "file": filename,
                 "label": manifest_records.get(filename, {}).get("label") or "none",
-                "detected_details": detected_map[filename]
+                "detected_details": detected_records[filename].character_corruption,
             }
             for filename in sorted(false_positives_set)
         ]
@@ -106,7 +118,7 @@ class CrossReference:
         false_negatives = [
             {
                 "file": filename,
-                "label": manifest_records[filename]["label"]
+                "label": manifest_records[filename]["label"],
             }
             for filename in sorted(false_negatives_set)
         ]
@@ -117,70 +129,57 @@ class CrossReference:
             "false_positive_count": len(false_positives),
             "false_negative_count": len(false_negatives),
             "false_positives": false_positives,
-            "false_negatives": false_negatives
+            "false_negatives": false_negatives,
         }
-        
+          
     def compare_structure_corrupted(
         self,
         manifest: Dict[str, Any],
-        detected_corruptions: Sequence[Union[str, Mapping[str, Optional[str]]]]
+        file_records: list[FileRecords],
     ) -> Dict[str, Any]:
-        """
-        Cross-references detected structure corruptions against manifest ground truth.
-        Uses size_bytes directly from the manifest to filter out 0-byte files.
-        """
-        
-        # Build lookup for manifest file sizes and structure corruption labels
+
         manifest_records = {
             record["filename"]: {
                 "size_bytes": record.get("size_bytes", 0),
-                "label": record.get("structure_corruption_label")
+                "label": record.get("structure_corruption_label"),
             }
             for record in manifest.get("files", [])
             if "filename" in record
         }
 
-        # Ground truth set: files with structure corruption label AND size_bytes > 0
         manifest_corrupted = {
             filename
             for filename, data in manifest_records.items()
-            if data["label"] not in (None, "none", "") and data["size_bytes"] > 0
+            if (
+                data["label"] not in (None, "none", "")
+                and data["size_bytes"] > 0
+            )
         }
 
-        # Map detected corruption items to extract filename and optional metadata payload
-        detected_map: Dict[str, Mapping[str, Optional[str]]] = {}
-        for item in detected_corruptions:
-            if isinstance(item, Mapping):
-                filename = item.get("file") or item.get("filename")
-                payload = item
-            else:
-                filename = item
-                payload = {"file": str(item)}
+        detected_records = {
+            record.filename: record
+            for record in file_records
+            if record.structural_corruption
+        }
 
-            if filename and manifest_records.get(filename, {}).get("size_bytes", 0) > 0:
-                detected_map[filename] = payload
-                
-        detected_set = set(detected_map.keys())
+        detected_set = set(detected_records)
 
-        # Set differences
         false_positives_set = detected_set - manifest_corrupted
         false_negatives_set = manifest_corrupted - detected_set
-        true_positives_set = detected_set & manifest_corrupted
 
-        # Build structured dictionary entries for false positives and false negatives
         false_positives = [
             {
                 "file": filename,
                 "label": manifest_records.get(filename, {}).get("label") or "none",
-                "detected_details": detected_map[filename]
+                "detected_details": detected_records[filename].structural_corruption,
             }
             for filename in sorted(false_positives_set)
         ]
-        
+
         false_negatives = [
             {
                 "file": filename,
-                "label": manifest_records[filename]["label"]
+                "label": manifest_records[filename]["label"],
             }
             for filename in sorted(false_negatives_set)
         ]
@@ -191,62 +190,52 @@ class CrossReference:
             "false_positive_count": len(false_positives),
             "false_negative_count": len(false_negatives),
             "false_positives": false_positives,
-            "false_negatives": false_negatives
+            "false_negatives": false_negatives,
         }
     
     def compare_extensions_scrambled(
         self,
         manifest: Dict[str, Any],
-        detected_scrambles: Sequence[Union[str, Mapping[str, Optional[str]]]]
+        file_records: list[FileRecords],
     ) -> Dict[str, Any]:
-        """
-        Cross-references detected scrambled extensions against manifest ground truth.
-        Uses size_bytes directly from the manifest to filter out 0-byte files.
-        """
-        # Build lookup for manifest file sizes and extension scrambled labels
+
         manifest_records = {
             record["filename"]: {
                 "size_bytes": record.get("size_bytes", 0),
                 "extension_scrambled": record.get("extension_scrambled"),
-                "original_extension": record.get("original_extension")
+                "original_extension": record.get("original_extension"),
             }
             for record in manifest.get("files", [])
             if "filename" in record
         }
 
-        # Ground truth set: files with extension scrambled label AND size_bytes > 0
         manifest_scrambled = {
             filename
             for filename, data in manifest_records.items()
             if data["extension_scrambled"] and data["size_bytes"] > 0
         }
 
-        # Map detected corruption items to extract filename and optional metadata payload
-        detected_map: Dict[str, Mapping[str, Optional[str]]] = {}
-        for item in detected_scrambles:
-            if isinstance(item, Mapping):
-                filename = item.get("file") or item.get("filename")
-                payload = item
-            else:
-                filename = item
-                payload = {"file": str(item)}
+        detected_records = {
+            record.filename: record
+            for record in file_records
+            if record.extension_mismatch
+        }
 
-            if filename and manifest_records.get(filename, {}).get("size_bytes", 0) > 0:
-                detected_map[filename] = payload
+        detected_set = set(detected_records)
 
-        detected_set = set(detected_map.keys())
-
-        # Set differences
         false_positives_set = detected_set - manifest_scrambled
         false_negatives_set = manifest_scrambled - detected_set
-        true_positives_set = detected_set & manifest_scrambled
 
-        # Build structured dictionary entries for false positives and false negatives
         false_positives = [
             {
                 "file": filename,
-                "original_extension": manifest_records.get(filename, {}).get("original_extension") or "none",
-                "detected_details": detected_map[filename]
+                "original_extension": (
+                    manifest_records.get(filename, {}).get("original_extension")
+                    or "none"
+                ),
+                "detected_details": {
+                    "actual_extension": detected_records[filename].actual_extension
+                },
             }
             for filename in sorted(false_positives_set)
         ]
@@ -254,7 +243,7 @@ class CrossReference:
         false_negatives = [
             {
                 "file": filename,
-                "original_extension": manifest_records[filename]["original_extension"]
+                "original_extension": manifest_records[filename]["original_extension"],
             }
             for filename in sorted(false_negatives_set)
         ]
@@ -265,5 +254,5 @@ class CrossReference:
             "false_positive_count": len(false_positives),
             "false_negative_count": len(false_negatives),
             "false_positives": false_positives,
-            "false_negatives": false_negatives
+            "false_negatives": false_negatives,
         }

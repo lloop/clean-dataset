@@ -1,18 +1,17 @@
 import argparse
 import shutil
-import xml.etree.ElementTree as ET
 import hashlib
 from pathlib import Path
-from typing import Dict, List
 
 from schemas.audit_schema import PipelineAuditSummary
 from tasks.character_detector import CharacterCorruptionDetector
 from tasks.structure_detector import StructureCorruptionDetector
-from tasks.deduplicator import FileDeduplicator
+from tasks.duplicate_detector import FileDeduplicator
 from tasks.extension_detector import ExtensionDetector
 from tasks.quarantine import QuarantineManager
 from tasks.reporter import AuditReporter
 from tasks.manifest_loader import ManifestLoader
+from schemas.file_schema import FileRecords
 
 DIRTY_DIR = Path("dataset_dirty")
 FILES_DIR = Path("dataset_dirty/files")
@@ -30,7 +29,6 @@ class DatasetCleaner:
         self.file_source_dir = self.source_dir / "files"
         self.clean_dir = Path(clean_dir)
 
-        # self.audit_records = FileAuditCollections()
         self.audit_summary = PipelineAuditSummary()
         self.quarantine_mgr = QuarantineManager(self.clean_dir)
         self.reporter = AuditReporter(self.clean_dir)
@@ -58,18 +56,20 @@ class DatasetCleaner:
         for file_path in self.file_source_dir.iterdir():
             # Skip directories or manifest file during deduplication pass
             if file_path.is_dir() or file_path.name == "manifest.json":
-                continue
+                continue 
+            
+            # Initialize audit record
+            record = FileRecords(
+                filename=file_path.name
+            )
 
             # Deduplication via Hash Matching
-            matched_file = self.deduplicator.is_duplicate(file_path)
+            matched_file, file_hash = self.deduplicator.is_duplicate(file_path)
+            record.file_hash = file_hash
             if matched_file:
+                record.duplicate = True
+                record.matched_file = matched_file
                                 
-                self.audit_summary.list_detected_files["detected_duplicates"].append(
-                    {"file": file_path.name, "matched_file": matched_file}
-                )
-                
-                # continue
-
             # Detect binary files
             true_ext = self.extension_detector.detect_true_extension(file_path)
             is_binary = true_ext in [".jpg", ".jpeg", ".png", ".gif", ".ico"]
@@ -77,76 +77,87 @@ class DatasetCleaner:
             
             if not is_binary:
                 # Character Corruption Pass
-                try:                     
-                    # Passes raw bytes directly
+                try:
                     with open(file_path, "rb") as f:
                         content = f.read()
 
-                    char_result = self.character_detector.detect_character_corruption(content)      
+                    char_result = self.character_detector.detect_character_corruption(content)
 
-                    def get_hash(path):
-                        with open(path, "rb") as f:
-                            return hashlib.sha256(f.read()).hexdigest()
-
-                    p1 = FILES_DIR / "invoice (1).py"
-                    p2 = FILES_DIR / "invoice_1.py"
-
-                    if p1.exists() and p2.exists():
-                        print(f"invoice (1).py hash: {get_hash(p1)}")
-                        print(f"invoice_1.py hash:   {get_hash(p2)}")
-                        print(f"Hashes Match? {get_hash(p1) == get_hash(p2)}")
-         
                     if char_result["is_corrupted"]:
-                        labels = ", ".join(char_result["detected_corruptions"])
-                                                
-                        self.audit_summary.list_detected_files["detected_character_corrupted"].append(
-                            {"file": file_path.name, "corruption": labels}
-                        )                            
-                        continue
-                    
+                        record.character_corruption.extend(
+                            char_result["detected_corruptions"]
+                        )
+
                 except OSError as error:
                     print(f"ERROR reading {file_path}: {error}")
                     
                     # self.quarantine_mgr.quarantine_corrupt_char(file_path, reason="read_error")
                     
                     continue
-
-                # Structural Corruption Pass
-                try:
-                    struct_result = self.structure_detector.detect_structure_corruption(file_path, true_ext)
                     
-                    if struct_result["is_corrupted"]:
-                        label = struct_result["error_message"]
-                        
-                        self.audit_summary.list_detected_files["detected_structure_corrupted"].append(
-                            {"file": file_path.name, "corruption": label}
-                        )
-                        continue
+            # Structural Corruption Pass
+            try:
+                struct_result = self.structure_detector.detect_structure_corruption(file_path, true_ext)
+                
+                if struct_result["is_corrupted"]:
+                    record.structural_corruption.append(
+                        struct_result["error_message"]
+                    )
 
-                except OSError as error:
-                    print(f"ERROR reading {file_path}: {error}")
-                    continue
+            except OSError as error:
+                print(f"ERROR reading {file_path}: {error}")
+                continue
 
             # Extension Detection
-            # The extension detection function is used in the begining to detect binary files
+            # The extension detection function is used in the begining 
+            # sof the loop to detect binary files
             current_ext = file_path.suffix.lower()
             if current_ext != true_ext:
-                repaired_path = file_path.with_suffix(true_ext)
-                ext_dict = {"file": file_path.name, "repaired_file": repaired_path.name}
-                self.audit_summary.list_detected_files["detected_extensions"].append(ext_dict)
+                record.actual_extension = true_ext
+                record.extension_mismatch = True
+                
+            self.audit_summary.file_records.append(record)
+            
+        self.audit_summary.build_summary()
                 
         manifest = self.manifest_loader.load()
-
+        
         # Generate output reports inside output folder
         self.reporter.generate_report(
             self.audit_summary, 
             manifest
         )
+        
+        # # Temporary
+        # from dataclasses import asdict
+        # import json
+        # print(json.dumps(
+        #     [asdict(record) for record in self.audit_summary.file_records[:3]],
+        #     indent=4
+        # ))
 
         return self.audit_summary
 
 if __name__ == "__main__":
+    
     parser = argparse.ArgumentParser()
+    
+    # These are not in effect yet
+    parser.add_argument(
+        "-dg", 
+        "--diagnostic",
+        action="store_true",
+        help="Files are not deleted or copied",
+    )  
+    
+    # These are not in effect yet
+    parser.add_argument(
+        "-db",
+        "--debug",
+        action="store_true",
+        help="work in tandem with dirty file generator",
+    )  
+    
     parser.add_argument(
         "-s",
         "--source",
