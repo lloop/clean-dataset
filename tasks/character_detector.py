@@ -33,7 +33,7 @@ class CharacterCorruptionDetector:
         if self.has_unicode_replacement_char(text_content):
             detected_types.append("unicode_replacement_char")
 
-        if self.has_mojibake(text_content):
+        if self.has_mojibake(text_content): 
             detected_types.append("mojibake")
 
         return {

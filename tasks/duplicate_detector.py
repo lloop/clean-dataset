@@ -21,6 +21,7 @@ class FileDeduplicator:
             return None, None
 
         if file_hash in self.seen_hashes:
+
             return self.seen_hashes[file_hash], file_hash
 
         self.seen_hashes[file_hash] = file_path.name

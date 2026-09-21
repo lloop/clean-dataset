@@ -12,6 +12,7 @@ from tasks.quarantine import QuarantineManager
 from tasks.reporter import AuditReporter
 from tasks.manifest_loader import ManifestLoader
 from schemas.file_schema import FileRecords
+from tasks.format_handlers.registry import FormatHandlerRegistry
 
 DIRTY_DIR = Path("dataset_dirty")
 FILES_DIR = Path("dataset_dirty/files")
@@ -37,6 +38,7 @@ class DatasetCleaner:
         self.extension_detector = ExtensionDetector()
         self.character_detector = CharacterCorruptionDetector()
         self.structure_detector = StructureCorruptionDetector()
+        self.format_handler_registry = FormatHandlerRegistry()
 
     def process(self) -> PipelineAuditSummary:
         """Executes deduplication, corruption detection, extension repair, and directory cleanup."""
@@ -62,6 +64,21 @@ class DatasetCleaner:
             record = FileRecords(
                 filename=file_path.name
             )
+            
+            # Detect binary files
+            current_ext = file_path.suffix.lower()
+            with open(file_path, "rb") as f:
+                content = f.read()
+
+            if len(content) == 0:
+                true_ext = current_ext
+            else:
+                true_ext = self.format_handler_registry.detect_extension(
+                    content,
+                    current_ext,
+                )            
+            
+            record.is_binary = true_ext in [".jpg", ".jpeg", ".png", ".gif", ".ico"]
 
             # Deduplication via Hash Matching
             matched_file, file_hash = self.deduplicator.is_duplicate(file_path)
@@ -69,19 +86,21 @@ class DatasetCleaner:
             if matched_file:
                 record.duplicate = True
                 record.matched_file = matched_file
-                                
-            # Detect binary files
-            true_ext = self.extension_detector.detect_true_extension(file_path)
-            is_binary = true_ext in [".jpg", ".jpeg", ".png", ".gif", ".ico"]
-
             
-            if not is_binary:
+            if not record.is_binary:
                 # Character Corruption Pass
                 try:
                     with open(file_path, "rb") as f:
                         content = f.read()
-
-                    char_result = self.character_detector.detect_character_corruption(content)
+                        
+                    # Temp (until all handlers are active)
+                    # char_result = self.character_detector.detect_character_corruption(content)
+                    handler = self.format_handler_registry.get_handler(true_ext)
+                    
+                    if handler:
+                        char_result = handler.detect_character_corruption(content)
+                    else:
+                        char_result = self.character_detector.detect_character_corruption(content)
 
                     if char_result["is_corrupted"]:
                         record.character_corruption.extend(
@@ -110,7 +129,7 @@ class DatasetCleaner:
 
             # Extension Detection
             # The extension detection function is used in the begining 
-            # sof the loop to detect binary files
+            # of the loop to detect binary files
             current_ext = file_path.suffix.lower()
             if current_ext != true_ext:
                 record.actual_extension = true_ext

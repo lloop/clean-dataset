@@ -48,10 +48,14 @@ class ExtensionDetector:
 
     def detect_true_extension(self, file_path: Path) -> str:
         current_ext = file_path.suffix.lower()
+        
+        # if file_path.stat().st_size == 0:
+        #     return current_ext
 
         # High-Confidence Magika Classifier
         try:
             res = self.magika.identify_path(file_path)
+            
             if res.score >= 0.75:
                 detected_ext = self._normalize_magika_label(res.output.label)
                 aliases = {".jpeg": ".jpg", ".htm": ".html", ".text": ".txt"}

@@ -32,7 +32,7 @@ class CrossReference:
     def compare_duplicates(
         self,
         manifest: Dict[str, Any],
-        detected_duplicates: List[Union[str, Dict[str, str]]]
+        file_records: list[FileRecords],
     ) -> Dict[str, Any]:
 
         # Extract pairs from manifest using the correct 'copied_from' key
@@ -44,9 +44,9 @@ class CrossReference:
 
         # Extract detected pairs
         detected_pairs = {
-            frozenset([item["file"], item["matched_file"]])
-            for item in detected_duplicates
-            if isinstance(item, dict)
+            frozenset([record.filename, record.matched_file])
+            for record in file_records
+            if record.duplicate and record.matched_file
         }
 
         false_positives_pairs = detected_pairs - manifest_pairs

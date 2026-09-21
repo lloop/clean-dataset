@@ -6,6 +6,7 @@ from typing import List, Optional
 class FileRecords:
     filename: str
     file_hash: Optional[str] = None
+    is_binary: bool = False
     extension_mismatch: bool = False
     actual_extension: Optional[str] = None
     duplicate: bool = False
