@@ -1,5 +1,6 @@
 import ast
 from magika import Magika
+import re
 
 class PythonHandler:
     
@@ -87,8 +88,7 @@ class PythonHandler:
     ) -> bool:
         try:
             text = content.decode("utf-8", errors="ignore")
-            ast.parse(text)
-        except (UnicodeDecodeError, SyntaxError):
+        except Exception as e:
             return False
 
         tests = {
@@ -108,5 +108,5 @@ class PythonHandler:
                 )
             ),
         }
-
+        
         return sum(tests.values()) >= 1

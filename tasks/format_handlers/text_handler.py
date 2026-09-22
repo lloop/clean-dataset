@@ -73,7 +73,7 @@ class TextHandler:
                 magika_label = result.output.label.lower()
                 magika_score = result.score
 
-                if magika_score >= 0.75:
+                if magika_score >= 0.5:
                     if magika_label == "rst":
                         return self.has_strong_rst_evidence(raw_bytes)
 

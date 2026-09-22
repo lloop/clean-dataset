@@ -14,6 +14,8 @@ from tasks.manifest_loader import ManifestLoader
 from schemas.file_schema import FileRecords
 from tasks.format_handlers.registry import FormatHandlerRegistry
 
+from magika import Magika
+
 DIRTY_DIR = Path("dataset_dirty")
 FILES_DIR = Path("dataset_dirty/files")
 MANIFEST_DIR = Path("dataset_dirty/metadata")
@@ -76,7 +78,12 @@ class DatasetCleaner:
                 true_ext = self.format_handler_registry.detect_extension(
                     content,
                     current_ext,
-                )            
+                )  
+                
+            # # ------------------
+            # if file_path.name == "presentation.txt":
+            #     print(f"DEBUG PRESENTATION: declared={current_ext} detected={true_ext}")  
+            # # ------------------     
             
             record.is_binary = true_ext in [".jpg", ".jpeg", ".png", ".gif", ".ico"]
 

@@ -32,30 +32,27 @@ class FormatHandlerRegistry:
         content: bytes,
         current_ext: str,
     ) -> str:
-        handler = self._handlers.get(current_ext)
 
-        if handler and hasattr(handler, "detect_extension"):
-            print(f"TRYING DECLARED HANDLER: {current_ext}")
+        if current_ext != ".txt":
+            handler = self._handlers.get(current_ext)
 
-            if handler.detect_extension(content):
-                print(f"MATCH: {current_ext}")
-                return current_ext
+            if handler and hasattr(handler, "detect_extension"):
+                if handler.detect_extension(content):
+                    return current_ext
 
-        # Here is where the order needs to be worked on
         for extension, handler in self._handlers.items():
-            if extension == current_ext:
+            if extension == current_ext or extension == ".txt":
                 continue
 
             if not hasattr(handler, "detect_extension"):
                 continue
 
-            print(f"TRYING OTHER HANDLER: {extension}")
-
             if handler.detect_extension(content):
-                print(
-                    f"MATCH: {extension} | "
-                    f"HANDLER: {current_ext}"
-                )
                 return extension
+
+        text_handler = self._handlers.get(".txt")
+
+        if text_handler and text_handler.detect_extension(content):
+            return ".txt"
 
         return current_ext

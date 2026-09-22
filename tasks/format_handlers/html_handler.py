@@ -72,7 +72,7 @@ class HTMLHandler:
 
             if (
                 result.output.label.lower() == "html"
-                and result.score >= 0.75
+                and result.score >= 0.5
             ):
                 return self.has_strong_html_evidence(raw_bytes)
 
