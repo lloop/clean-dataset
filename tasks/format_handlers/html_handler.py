@@ -70,25 +70,41 @@ class HTMLHandler:
         try:
             result = self.magika.identify_bytes(raw_bytes)
 
-            if (
-                result.output.label.lower() == "html"
-                and result.score >= 0.5
-            ):
-                return self.has_strong_html_evidence(raw_bytes)
+            magika_label = result.output.label.lower()
+            confidence = result.score
+
+            evidence_count = self.count_html_evidence(raw_bytes)
+
+            # Magika agrees with HTML.
+            if magika_label == "html":
+                if confidence >= 0.8:
+                    return evidence_count >= 1
+                elif confidence >= 0.6:
+                    return evidence_count >= 2
+                else:
+                    return evidence_count >= 2
+
+            # Magika does not classify the file as HTML.
+            if confidence >= 0.8:
+                return evidence_count == 5
+            elif confidence >= 0.6:
+                return evidence_count >= 4
+            elif confidence >= 0.4:
+                return evidence_count >= 3
+            else:
+                return evidence_count >= 4
 
         except Exception:
-            pass
-
-        return False
-
-    def has_strong_html_evidence(
+            return False
+        
+    def count_html_evidence(
         self,
         content: bytes,
-    ) -> bool:
+    ) -> int:
         try:
             text = content.decode("utf-8", errors="ignore")
         except Exception:
-            return False
+            return 0
 
         tests = {
             "doctype": bool(
@@ -108,8 +124,8 @@ class HTMLHandler:
             ),
         }
 
-        return sum(tests.values()) >= 2
-    
+        return sum(tests.values())
+
     def detect_structure_corruption(
         self,
         content: str | bytes,

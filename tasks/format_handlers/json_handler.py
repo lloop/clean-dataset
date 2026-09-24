@@ -90,7 +90,7 @@ class JSONHandler:
 
             if (
                 result.output.label.lower() == "json"
-                and result.score >= 0.75
+                and result.score >= 0.5
             ):
                 return self.has_strong_json_evidence(raw_bytes)
 

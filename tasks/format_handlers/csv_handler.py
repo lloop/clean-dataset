@@ -100,14 +100,15 @@ class CSVHandler:
         content: bytes,
     ) -> bool:
         try:
-            text = content.decode("utf-8", errors="ignore")
+            text = content.decode("utf-8", errors="ignore").replace("\x00", "")
         except Exception:
             return False
 
         for delimiter in (",", ";"):
             try:
                 rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
-            except csv.Error:
+            except csv.Error as error:
+                print(f"CSV parsing error: {error}")
                 return False
 
             if len(rows) < 2:
