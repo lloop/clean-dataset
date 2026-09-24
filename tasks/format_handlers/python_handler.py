@@ -18,7 +18,7 @@ class PythonHandler:
 
         detected_types = []
 
-        if self.has_null_bytes(text):
+        if self.has_null_bytes(text) or "\\u0000" in text:
             detected_types.append("null_byte_injection")
 
         if self.has_unicode_replacement_char(text):
@@ -110,3 +110,33 @@ class PythonHandler:
         }
         
         return sum(tests.values()) >= 1
+    
+    def detect_structure_corruption(
+        self,
+        content: str | bytes,
+    ) -> dict:
+        if isinstance(content, bytes):
+            text = content.decode("utf-8", errors="surrogateescape").replace("\x00", "").replace("\ufffd", "")
+        else:
+            text = content.replace("\x00", "").replace("\ufffd", "")
+
+        text = text.strip()
+
+        if not text:
+            return {
+                "is_corrupted": True,
+                "error_message": "Empty Python file",
+            }
+
+        try:
+            ast.parse(text)
+        except (SyntaxError, ValueError, TypeError) as error:
+            return {
+                "is_corrupted": True,
+                "error_message": str(error),
+            }
+
+        return {
+            "is_corrupted": False,
+            "error_message": None,
+        }

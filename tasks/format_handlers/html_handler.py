@@ -17,7 +17,7 @@ class HTMLHandler:
 
         detected_types = []
 
-        if self.has_null_bytes(text):
+        if self.has_null_bytes(text) or "\\u0000" in text:
             detected_types.append("null_byte_injection")
 
         if self.has_unicode_replacement_char(text):
@@ -109,3 +109,46 @@ class HTMLHandler:
         }
 
         return sum(tests.values()) >= 2
+    
+    def detect_structure_corruption(
+        self,
+        content: str | bytes,
+    ) -> dict:
+        if isinstance(content, bytes):
+            text = content.decode("utf-8", errors="surrogateescape")
+        else:
+            text = content
+
+        text = text.strip()
+
+        if not text:
+            return {
+                "is_corrupted": True,
+                "error_message": "Empty HTML file",
+            }
+
+        tests = {
+            "html_tag": bool(
+                re.search(r"<\s*html\b", text, re.IGNORECASE)
+            ),
+            "closing_html_tag": bool(
+                re.search(r"</\s*html\s*>", text, re.IGNORECASE)
+            ),
+            "head_tag": bool(
+                re.search(r"<\s*head\b", text, re.IGNORECASE)
+            ),
+            "body_tag": bool(
+                re.search(r"<\s*body\b", text, re.IGNORECASE)
+            ),
+        }
+
+        if tests["html_tag"] and not tests["closing_html_tag"]:
+            return {
+                "is_corrupted": True,
+                "error_message": "Unclosed HTML tag",
+            }
+
+        return {
+            "is_corrupted": False,
+            "error_message": None,
+        }

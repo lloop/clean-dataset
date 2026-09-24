@@ -150,10 +150,7 @@ class CrossReference:
         manifest_corrupted = {
             filename
             for filename, data in manifest_records.items()
-            if (
-                data["label"] not in (None, "none", "")
-                and data["size_bytes"] > 0
-            )
+            if data["label"] not in (None, "none", "")
         }
 
         detected_records = {

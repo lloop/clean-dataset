@@ -1,5 +1,6 @@
 # Session
 dataset_dirty/
+dataset_dirty_trace/
 dataset_clean/
 
 # Byte-compiled / optimized / DLL files

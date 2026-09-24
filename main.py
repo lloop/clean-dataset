@@ -5,7 +5,6 @@ from pathlib import Path
 
 from schemas.audit_schema import PipelineAuditSummary
 from tasks.character_detector import CharacterCorruptionDetector
-from tasks.structure_detector import StructureCorruptionDetector
 from tasks.duplicate_detector import FileDeduplicator
 from tasks.extension_detector import ExtensionDetector
 from tasks.quarantine import QuarantineManager
@@ -13,8 +12,6 @@ from tasks.reporter import AuditReporter
 from tasks.manifest_loader import ManifestLoader
 from schemas.file_schema import FileRecords
 from tasks.format_handlers.registry import FormatHandlerRegistry
-
-from magika import Magika
 
 DIRTY_DIR = Path("dataset_dirty")
 FILES_DIR = Path("dataset_dirty/files")
@@ -39,7 +36,6 @@ class DatasetCleaner:
         self.deduplicator = FileDeduplicator()
         self.extension_detector = ExtensionDetector()
         self.character_detector = CharacterCorruptionDetector()
-        self.structure_detector = StructureCorruptionDetector()
         self.format_handler_registry = FormatHandlerRegistry()
 
     def process(self) -> PipelineAuditSummary:
@@ -78,12 +74,10 @@ class DatasetCleaner:
                 true_ext = self.format_handler_registry.detect_extension(
                     content,
                     current_ext,
-                )  
+                )    
                 
-            # # ------------------
-            # if file_path.name == "presentation.txt":
-            #     print(f"DEBUG PRESENTATION: declared={current_ext} detected={true_ext}")  
-            # # ------------------     
+            if current_ext in {".py", ".json"}:
+                print(file_path.name, current_ext, "=>", true_ext)
             
             record.is_binary = true_ext in [".jpg", ".jpeg", ".png", ".gif", ".ico"]
 
@@ -94,14 +88,9 @@ class DatasetCleaner:
                 record.duplicate = True
                 record.matched_file = matched_file
             
-            if not record.is_binary:
-                # Character Corruption Pass
-                try:
-                    with open(file_path, "rb") as f:
-                        content = f.read()
-                        
-                    # Temp (until all handlers are active)
-                    # char_result = self.character_detector.detect_character_corruption(content)
+            try:
+                if not record.is_binary:
+                    # Character Corruption Pass
                     handler = self.format_handler_registry.get_handler(true_ext)
                     
                     if handler:
@@ -114,21 +103,32 @@ class DatasetCleaner:
                             char_result["detected_corruptions"]
                         )
 
-                except OSError as error:
-                    print(f"ERROR reading {file_path}: {error}")
-                    
-                    # self.quarantine_mgr.quarantine_corrupt_char(file_path, reason="read_error")
-                    
-                    continue
-                    
+            except OSError as error:
+                print(f"ERROR reading {file_path}: {error}")
+                
+                # self.quarantine_mgr.quarantine_corrupt_char(file_path, reason="read_error")
+                
+                continue
+                
             # Structural Corruption Pass
             try:
-                struct_result = self.structure_detector.detect_structure_corruption(file_path, true_ext)
-                
-                if struct_result["is_corrupted"]:
-                    record.structural_corruption.append(
-                        struct_result["error_message"]
-                    )
+                if len(content) == 0:
+                    record.structural_corruption.append("Empty file")
+                else:
+                    handler = self.format_handler_registry.get_handler(true_ext)
+
+                    if handler:
+                        struct_result = handler.detect_structure_corruption(content)
+                    else:
+                        struct_result = {
+                            "is_corrupted": False,
+                            "error_message": None,
+                        }
+
+                    if struct_result["is_corrupted"]:
+                        record.structural_corruption.append(
+                            struct_result["error_message"]
+                        )
 
             except OSError as error:
                 print(f"ERROR reading {file_path}: {error}")
@@ -153,16 +153,9 @@ class DatasetCleaner:
             self.audit_summary, 
             manifest
         )
-        
-        # # Temporary
-        # from dataclasses import asdict
-        # import json
-        # print(json.dumps(
-        #     [asdict(record) for record in self.audit_summary.file_records[:3]],
-        #     indent=4
-        # ))
 
         return self.audit_summary
+
 
 if __name__ == "__main__":
     
@@ -173,7 +166,7 @@ if __name__ == "__main__":
         "-dg", 
         "--diagnostic",
         action="store_true",
-        help="Files are not deleted or copied",
+        help="Files are not deleted, copied, or quarantined",
     )  
     
     # These are not in effect yet
@@ -181,8 +174,8 @@ if __name__ == "__main__":
         "-db",
         "--debug",
         action="store_true",
-        help="work in tandem with dirty file generator",
-    )  
+        help="Work in tandem with dirty file generator",
+    ) 
     
     parser.add_argument(
         "-s",

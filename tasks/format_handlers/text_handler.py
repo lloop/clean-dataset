@@ -17,7 +17,7 @@ class TextHandler:
 
         detected_types = []
 
-        if self.has_null_bytes(text):
+        if self.has_null_bytes(text) or "\\u0000" in text:
             detected_types.append("null_byte_injection")
 
         if self.has_unicode_replacement_char(text):
@@ -70,17 +70,21 @@ class TextHandler:
             try:
                 result = self.magika.identify_bytes(raw_bytes)
 
-                magika_label = result.output.label.lower()
-                magika_score = result.score
+                # magika_is_text = result.output.is_text
+                # magika_label = result.output.label.lower()
+                # magika_score = result.score
+                
+                if result.output.is_text:
+                    return True
 
-                if magika_score >= 0.5:
-                    if magika_label == "rst":
-                        return self.has_strong_rst_evidence(raw_bytes)
+                # if magika_score >= 0.5:
+                #     if magika_label == "rst":
+                #         return self.has_strong_rst_evidence(raw_bytes)
 
-                    return magika_label in {
-                        "txt",
-                        "text",
-                    }
+                #     return magika_label in {
+                #         "txt",
+                #         "text",
+                #     }
 
             except Exception:
                 pass
@@ -113,3 +117,23 @@ class TextHandler:
         }
 
         return sum(tests.values()) >= 2
+    
+    def detect_structure_corruption(
+        self,
+        content: str | bytes,
+    ) -> dict:
+        if isinstance(content, bytes):
+            text = content.decode("utf-8", errors="surrogateescape")
+        else:
+            text = content
+
+        if not text.strip():
+            return {
+                "is_corrupted": True,
+                "error_message": "Empty text file",
+            }
+
+        return {
+            "is_corrupted": False,
+            "error_message": None,
+        }

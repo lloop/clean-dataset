@@ -1,23 +1,29 @@
-from pathlib import Path
-from magika import Magika
+import json
 
-magika = Magika()
+with open("dataset_dirty/metadata/manifest.json", "r", encoding="utf-8") as f:
+    manifest = json.load(f)
 
-files = [
-    "LOG.json",
-    "STATEMENT_COPY.json",
-    "brief_copy_1.json",
-    "memo_3.json",
-]
+target_files = {
+    "AUDIT.xml",
+    "Data.csv",
+    "Notes.json",
+    "PHOTO_COPY.csv",
+    "Schedule.py",
+    "Statement_1.csv",
+    "TIMESHEET_OLD.xml",
+    "audit.xml",
+    "backup_draft.csv",
+    "brief_backup_1.json",
+    "brief_backup_1_copy.json",
+    "data.json",
+    "data_2.py",
+    "invoice_draft.csv",
+    "project.py",
+    "report-.xml",
+    "BACKUP.html",
+    "audit_old.csv",
+}
 
-for filename in files:
-    path = Path("dataset_dirty/files") / filename
-    content = path.read_bytes()
-
-    result = magika.identify_bytes(content)
-
-    print(
-        f"FILE: {filename} | "
-        f"LABEL: {result.output.label} | "
-        f"SCORE: {result.score}"
-    )
+for record in manifest["files"]:
+    if record.get("filename") in target_files:
+        print(json.dumps(record, indent=2))

@@ -18,7 +18,7 @@ class CSVHandler:
 
         detected_types = []
 
-        if self.has_null_bytes(text):
+        if self.has_null_bytes(text) or "\\u0000" in text:
             detected_types.append("null_byte_injection")
 
         if self.has_unicode_replacement_char(text):
@@ -104,17 +104,76 @@ class CSVHandler:
         except Exception:
             return False
 
+        for delimiter in (",", ";"):
+            try:
+                rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+            except csv.Error:
+                return False
+
+            if len(rows) < 2:
+                continue
+
+            column_counts = [len(row) for row in rows if row]
+
+            if column_counts and max(column_counts) >= 2:
+                return True
+
+        return False
+
+    def detect_structure_corruption(
+        self,
+        content: str | bytes,
+    ) -> dict:
+        if isinstance(content, bytes):
+            text = content.decode("utf-8", errors="surrogateescape").replace("\x00", "")
+        else:
+            text = content.replace("\x00", "")
+
         try:
             rows = list(csv.reader(io.StringIO(text)))
-        except csv.Error:
-            return False
+        except csv.Error as error:
+            return {
+                "is_corrupted": True,
+                "error_message": str(error),
+            }
 
-        if len(rows) < 2:
-            return False
+        rows = [row for row in rows if row]
 
-        column_counts = [len(row) for row in rows if row]
+        if not rows:
+            return {
+                "is_corrupted": True,
+                "error_message": "Empty CSV file",
+            }
+            
+        comma_rows = list(csv.reader(io.StringIO(text), delimiter=","))
+        semicolon_rows = list(csv.reader(io.StringIO(text), delimiter=";"))
 
-        if not column_counts:
-            return False
+        comma_columns = [len(row) for row in comma_rows if row]
+        semicolon_columns = [len(row) for row in semicolon_rows if row]
 
-        return max(column_counts) >= 2
+        if (
+            max(semicolon_columns, default=0) > 1
+            and max(comma_columns, default=0) <= 1
+        ):
+            return {
+                "is_corrupted": True,
+                "error_message": "Unexpected semicolon delimiter",
+            }
+
+        data_rows = rows
+        expected_cols = len(data_rows[0])
+
+        for i, row in enumerate(data_rows, start=1):
+            if len(row) != expected_cols:
+                return {
+                    "is_corrupted": True,
+                    "error_message": (
+                        f"Row {i} has inconsistent column count "
+                        f"(expected {expected_cols}, got {len(row)})"
+                    ),
+                }
+
+        return {
+            "is_corrupted": False,
+            "error_message": None,
+        }

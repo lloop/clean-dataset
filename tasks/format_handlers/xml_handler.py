@@ -17,7 +17,7 @@ class XMLHandler:
 
         detected_types = []
 
-        if self.has_null_bytes(text):
+        if self.has_null_bytes(text) or "\\u0000" in text:
             detected_types.append("null_byte_injection")
 
         if self.has_unicode_replacement_char(text):
@@ -109,3 +109,33 @@ class XMLHandler:
         }
 
         return sum(tests.values()) >= 2
+    
+    def detect_structure_corruption(
+        self,
+        content: str | bytes,
+    ) -> dict:
+        import xml.etree.ElementTree as ET
+
+        if isinstance(content, bytes):
+            text = content.decode("utf-8", errors="surrogateescape")
+        else:
+            text = content
+
+        if not text.strip():
+            return {
+                "is_corrupted": True,
+                "error_message": "Empty XML file",
+            }
+
+        try:
+            ET.fromstring(text.replace("\x00", ""))
+        except ET.ParseError as error:
+            return {
+                "is_corrupted": True,
+                "error_message": str(error),
+            }
+
+        return {
+            "is_corrupted": False,
+            "error_message": None,
+        }
