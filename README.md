@@ -1,38 +1,55 @@
-# Shampoo and Conditioner
+# Data Cleaner
 
-Do your files have split ends? At root level, are you plagued with zero byte dandruff? Than Shampoo and Conditioner is for you!
+A Python-based data quality pipeline for cleaning a deliberately messy, mixed-format dataset. It inspects files from a source directory, identifies duplicates and corrupt data, repairs obvious extension mismatches when possible, and organizes the output into clean and quarantined directories.
 
-A Python pipeline for evaluating a deliberately messy, multi-format dataset. It identifies duplicate files, detects common file corruptions, repairs misleading file extensions when the content can be classified, copies valid files into an organized output directory, and records an audit trail of the run.
+## Overview
 
-## What It Checks
+This project is designed to process a synthetic dataset stored under `dataset_dirty/` and generate a refreshed output under `dataset_clean/`. The pipeline does not modify the original files in place; instead, it reads the input, evaluates each file, and writes valid results into the clean output while routing invalid or suspicious files to quarantine.
 
-The pipeline tests four data-quality problems:
+## What the Cleaner Checks
 
-1. **Exact duplicates** - Computes a SHA-256 hash for each file and quarantines any later file with content identical to a file already seen.
-2. **Character corruption** - For text files, detects null-byte injection, Unicode replacement characters (`U+FFFD`), and common mojibake signatures such as `Ã` and `â€™`.
-3. **Structural corruption** - Validates JSON with a JSON parser, XML with an XML parser, and CSV files by checking that every row has the same number of columns. Files that fail parsing or validation are quarantined.
-4. **Incorrect or scrambled extensions** - Compares the filename extension with the detected file type. When the content has a different, recognizable type, the file is copied to the valid output with the corrected extension.
+The current workflow covers four main areas:
 
-The pipeline processes files in this order: duplicate detection, file-type detection, character checks, structural checks, then extension repair or delivery to the valid dataset. It copies files rather than modifying the originals in `dataset_dirty`.
+1. Duplicate detection
+   - Computes a SHA-256 hash for each file.
+   - Flags later copies that match the same content.
+   - Keeps only the first valid instance and quarantines the duplicates.
+
+2. Character corruption detection
+   - Looks for text-level corruption patterns such as null-byte injection and common mojibake-style artifacts.
+   - Applies the appropriate handler based on the detected content type.
+
+3. Structural validation
+   - Checks whether structured formats can be parsed successfully.
+   - Validates file integrity for formats like JSON, XML, CSV, and others supported by the format handlers.
+   - Files that fail validation are marked as structurally corrupted.
+
+4. Extension mismatch detection
+   - Compares the file name extension against the content type.
+   - When the file contents clearly match a different format, the dataset record notes the corrected extension.
+
+The cleaner processes files in a staged flow: duplicate checks, format detection, character validation, structural validation, and final output routing.
 
 ## Requirements
 
-- Python 3.10 or newer
-- `python-magic` and the system `libmagic` library
-- `beautifulsoup4`
-- `html5lib`
-- `defusedxml`
-- `magika`
-- `orjson`
-- `polars`
-
-The file named `requirements.yxy` currently does not contain all imports required by the pipeline and is not named as a standard pip requirements file. Install the dependencies in your environment with:
+This project requires Python 3.10+ and the following dependencies.
 
 ```bash
-python -m pip install python-magic beautifulsoup4 html5lib defusedxml magika orjson polars
+python -m pip install -r requirements.txt
 ```
 
-On Debian or Ubuntu, `python-magic` may also require:
+The current requirements file includes:
+
+- beautifulsoup4
+- defusedxml
+- html5lib
+- magika
+- orjson
+- pandas
+- polars
+- python-magic
+
+On Debian/Ubuntu systems, `python-magic` may also require:
 
 ```bash
 sudo apt-get install libmagic1
@@ -40,23 +57,25 @@ sudo apt-get install libmagic1
 
 ## Running the Cleaner
 
-With the included sample dataset:
+From the project root:
 
 ```bash
-python3 main.py
+python main.py
 ```
 
-By default, the script reads from `dataset_dirty/` and recreates `dataset_clean/` on every run. Custom directories can be supplied with the command-line options:
+This reads the default source directory (`dataset_dirty/`) and recreates the output directory (`dataset_clean/`) on each run.
+
+To use custom input and output folders:
 
 ```bash
-python3 main.py --source path/to/input --clean path/to/output
+python main.py --source path/to/input --clean path/to/output
 ```
 
-The command prints counts for evaluated files, duplicates, repaired extensions, character corruptions, structural corruptions, quarantined files, and valid files retained.
+The script prints a summary after processing, including totals for evaluated files, duplicates, repaired extensions, character corruptions, structural corruptions, and clean files retained.
 
-## Output Layout
+## Output Structure
 
-Each run recreates the selected output directory with this structure:
+Each run recreates the selected output folder with a layout similar to this:
 
 ```text
 dataset_clean/
@@ -64,58 +83,54 @@ dataset_clean/
 │   ├── csv/
 │   ├── html/
 │   ├── json/
-│   ├── jpg/
 │   ├── py/
 │   ├── txt/
 │   └── ...
 ├── quarantine/
 │   ├── duplicates/
 │   ├── corrupted_character/
-│   └── corrupted_structure/
+│   ├── corrupted_structure/
+│   └── ...
 ├── audit_summary.json
-└── audit_summary.md
+├── audit_summary.md
+└── manifest.json
 ```
 
-- `valid/` contains clean files grouped by their final extension.
-- `quarantine/duplicates/` contains exact duplicate copies.
-- `quarantine/corrupted_character/` contains files rejected by the character-corruption detector.
-- `quarantine/corrupted_structure/` contains files rejected by format validation.
-- `audit_summary.json` contains timestamped metrics and filename-level lists of duplicates, extension repairs, character corruptions, and structural corruptions.
-- `audit_summary.md` provides a human-readable version of the audit.
+- `valid/` contains files that passed validation and were kept in the cleaned dataset.
+- `quarantine/duplicates/` contains duplicate copies that were excluded.
+- `quarantine/corrupted_character/` contains files rejected during character-level checks.
+- `quarantine/corrupted_structure/` contains files rejected by structural validation.
+- `audit_summary.json` stores machine-readable metrics and file-level audit entries.
+- `audit_summary.md` provides a readable summary of the run.
 
-## Libraries Used
-
-The project combines Python's standard library with focused file-analysis libraries:
-
-- **`hashlib`** - SHA-256 content hashing for exact duplicate detection.
-- **`magika`** - Content-based file classification with a confidence score.
-- **`python-magic` / `libmagic`** - MIME and magic-byte inspection.
-- **`orjson`** - Fast JSON content validation and type detection.
-- **`defusedxml`** - Safer XML parsing for type detection; `xml.etree.ElementTree` validates XML structure.
-- **`BeautifulSoup` with `html5lib`** - HTML detection and parsing.
-- **`polars`** - CSV schema/content detection.
-- **Python `csv` module** - CSV row-width validation.
-- **`argparse`, `pathlib`, `shutil`, and `json`** - CLI arguments, paths, file copying, and audit report serialization.
-
-## Project Structure
+## Project Layout
 
 ```text
-main.py                    # Pipeline entry point and CLI
-tasks/
-├── character_detector.py  # Text corruption signatures
-├── deduplicator.py        # SHA-256 duplicate detection
-├── extension_detector.py  # Content-based extension detection
-├── quarantine.py           # Valid-file and quarantine routing
-├── reporter.py             # JSON and Markdown audit reports
-└── structure_detector.py  # Format integrity validation
+main.py                     # CLI entry point and pipeline coordinator
 schemas/
-└── audit_schema.py         # Audit record data classes
-dataset_dirty/              # Input files
-dataset_clean/              # Recreated output directory
+├── audit_schema.py         # Audit summary/data record models
+├── file_schema.py          # Per-file record schema
+
+tasks/
+├── character_detector.py   # Character corruption detection
+├── cross_reference.py      # Cross-reference helper logic
+├── duplicate_detector.py   # Duplicate detection logic
+├── extension_detector.py   # Extension and content classification
+├── format_handlers/        # Format-specific validation handlers
+├── manifest_loader.py      # Manifest loader
+├── quarantine.py           # Output and quarantine management
+├── reporter.py             # JSON/Markdown audit generation
+└── __init__.py
+
+dataset_dirty/              # Source dataset used as input
+dataset_clean/              # Cleaned dataset generated by the pipeline
+requirements.txt            # Python dependencies
+README.md                   # Project overview and usage notes
 ```
 
 ## Notes
 
-- The source dataset is never edited; files are copied into the output or quarantine locations.
-- A failed character or structural check takes precedence over extension repair, so rejected files are not placed in `valid/`.
-- The pipeline skips directories and a top-level `manifest.json` during its main processing pass.
+- The source dataset is never modified in place.
+- The cleaner copies valid files into the output directory instead of rewriting original files.
+- Invalid files are routed to quarantine instead of being left in the dirty dataset.
+- The project is intended for processing a controlled synthetic dataset and is meant to be used as a data-cleaning exercise or demonstration pipeline.

@@ -80,7 +80,7 @@ class CrossReference:
         manifest_records = {
             record["filename"]: {
                 "size_bytes": record.get("size_bytes", 0),
-                "label": record.get("character_corruption_label"),
+                "labels": record.get("character_corruption_labels", []),
             }
             for record in manifest.get("files", [])
             if "filename" in record
@@ -89,10 +89,7 @@ class CrossReference:
         manifest_corrupted = {
             filename
             for filename, data in manifest_records.items()
-            if (
-                data["label"] not in (None, "none", "")
-                and data["size_bytes"] > 0
-            )
+            if data["labels"]
         }
 
         detected_records = {
@@ -109,7 +106,7 @@ class CrossReference:
         false_positives = [
             {
                 "file": filename,
-                "label": manifest_records.get(filename, {}).get("label") or "none",
+                "labels": manifest_records.get(filename, {}).get("labels", []),
                 "detected_details": detected_records[filename].character_corruption,
             }
             for filename in sorted(false_positives_set)
@@ -118,7 +115,7 @@ class CrossReference:
         false_negatives = [
             {
                 "file": filename,
-                "label": manifest_records[filename]["label"],
+                "labels": manifest_records[filename]["labels"],
             }
             for filename in sorted(false_negatives_set)
         ]
@@ -141,7 +138,7 @@ class CrossReference:
         manifest_records = {
             record["filename"]: {
                 "size_bytes": record.get("size_bytes", 0),
-                "label": record.get("structure_corruption_label"),
+                "labels": record.get("structure_corruption_label", []),
             }
             for record in manifest.get("files", [])
             if "filename" in record
@@ -150,7 +147,7 @@ class CrossReference:
         manifest_corrupted = {
             filename
             for filename, data in manifest_records.items()
-            if data["label"] not in (None, "none", "")
+            if data["labels"]
         }
 
         detected_records = {
@@ -167,7 +164,7 @@ class CrossReference:
         false_positives = [
             {
                 "file": filename,
-                "label": manifest_records.get(filename, {}).get("label") or "none",
+                "labels": manifest_records.get(filename, {}).get("labels", []),
                 "detected_details": detected_records[filename].structural_corruption,
             }
             for filename in sorted(false_positives_set)
@@ -176,7 +173,7 @@ class CrossReference:
         false_negatives = [
             {
                 "file": filename,
-                "label": manifest_records[filename]["label"],
+                "labels": manifest_records[filename]["labels"],
             }
             for filename in sorted(false_negatives_set)
         ]

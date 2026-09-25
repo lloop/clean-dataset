@@ -1,6 +1,7 @@
 import argparse
 import shutil
 import hashlib
+from dataclasses import asdict
 from pathlib import Path
 
 from schemas.audit_schema import PipelineAuditSummary
@@ -51,7 +52,9 @@ class DatasetCleaner:
         self.clean_dir.mkdir(parents=True)
 
         # Setup destination valid/ and quarantine/ structures
-        self.quarantine_mgr.setup_directories()
+        self.quarantine_mgr.setup_quarantine_directories()
+        
+        quarantine_records = []
 
         for file_path in self.file_source_dir.iterdir():
             # Skip directories or manifest file during deduplication pass
@@ -105,9 +108,7 @@ class DatasetCleaner:
 
             except OSError as error:
                 print(f"ERROR reading {file_path}: {error}")
-                
-                # self.quarantine_mgr.quarantine_corrupt_char(file_path, reason="read_error")
-                
+                                
                 continue
                 
             # Structural Corruption Pass
@@ -143,6 +144,24 @@ class DatasetCleaner:
                 record.extension_mismatch = True
                 
             self.audit_summary.file_records.append(record)
+            
+            has_findings = (
+                record.duplicate
+                or bool(record.character_corruption)
+                or bool(record.structural_corruption)
+                or record.extension_mismatch
+            )
+
+            if has_findings:
+                self.quarantine_mgr.quarantine_file(file_path)
+                quarantine_records.append(asdict(record))
+            else:
+                self.quarantine_mgr.save_valid_file(
+                    file_path,
+                    target_path=file_path,
+                )
+            
+        self.quarantine_mgr.save_quarantine_manifest(quarantine_records)
             
         self.audit_summary.build_summary()
                 

@@ -6,6 +6,14 @@ from .python_handler import PythonHandler
 from .text_handler import TextHandler
 from .xml_handler import XMLHandler
 
+# TODO: I think a good refactor is to run the Magika analysis once at the top
+# of the attempt to detect the extension and that Magika analasis data goes in to 
+# the file object so only one analysis is needed per file in the pipeline.
+# That way a file is brought in to the scrambled extension area and it is 
+# immediately tested for the extension it has. As a part of that it undergoes 
+# the Magika analysis. That analysis is added to the file object so if it fails 
+# or not it has that. Bringing that data file object info to the AI part is
+# very efficient.
 
 class FormatHandlerRegistry:
 

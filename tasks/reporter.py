@@ -36,11 +36,11 @@ class AuditReporter:
             "detected_structure_corrupted": audit_summary.structure_corrupted,
             "detected_duplicates": audit_summary.duplicates,
             "clean_saved": audit_summary.clean_saved,
+            "cross_reference": cross_reference,
             "file_records": [
                 asdict(record)
                 for record in audit_summary.file_records
             ],
-            "cross_reference": cross_reference,
         }
 
         json_path = self.output_dir / "audit_summary.json"
