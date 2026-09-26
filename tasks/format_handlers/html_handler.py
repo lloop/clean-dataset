@@ -1,11 +1,10 @@
-from magika import Magika
 import re
 
 class HTMLHandler:
     
     def __init__(self):
-        self.magika = Magika()
-
+        pass
+    
     def detect_character_corruption(
         self,
         content: str | bytes,
@@ -61,42 +60,38 @@ class HTMLHandler:
     def detect_extension(
         self,
         content: str | bytes,
+        magika_result,
     ) -> bool:
+
         if isinstance(content, bytes):
             raw_bytes = content
         else:
             raw_bytes = content.encode("utf-8")
 
-        try:
-            result = self.magika.identify_bytes(raw_bytes)
+        magika_label = magika_result.output.label.lower()
+        confidence = magika_result.score
 
-            magika_label = result.output.label.lower()
-            confidence = result.score
+        evidence_count = self.count_html_evidence(raw_bytes)
 
-            evidence_count = self.count_html_evidence(raw_bytes)
-
-            # Magika agrees with HTML.
-            if magika_label == "html":
-                if confidence >= 0.8:
-                    return evidence_count >= 1
-                elif confidence >= 0.6:
-                    return evidence_count >= 2
-                else:
-                    return evidence_count >= 2
-
-            # Magika does not classify the file as HTML.
+        # Magika agrees with HTML.
+        if magika_label == "html":
             if confidence >= 0.8:
-                return evidence_count == 5
+                return evidence_count >= 1
             elif confidence >= 0.6:
-                return evidence_count >= 4
-            elif confidence >= 0.4:
-                return evidence_count >= 3
+                return evidence_count >= 2
             else:
-                return evidence_count >= 4
+                return evidence_count >= 2
 
-        except Exception:
-            return False
-        
+        # Magika does not classify the file as HTML.
+        if confidence >= 0.8:
+            return evidence_count == 5
+        elif confidence >= 0.6:
+            return evidence_count >= 4
+        elif confidence >= 0.4:
+            return evidence_count >= 3
+        else:
+            return evidence_count >= 4
+          
     def count_html_evidence(
         self,
         content: bytes,

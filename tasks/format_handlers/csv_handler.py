@@ -1,12 +1,11 @@
 import csv
 import io
-from magika import Magika
 
 class CSVHandler:
     
     def __init__(self):
-        self.magika = Magika()
-
+        pass
+    
     def detect_character_corruption(
         self,
         content: str | bytes,
@@ -75,26 +74,22 @@ class CSVHandler:
     def detect_extension(
         self,
         content: str | bytes,
+        magika_result,
     ) -> bool:
-        if isinstance(content, bytes):
-            raw_bytes = content
-        else:
-            raw_bytes = content.encode("utf-8")
 
-        try:
-            result = self.magika.identify_bytes(raw_bytes)
+        if (
+            magika_result.output.label.lower() == "csv"
+            and magika_result.score >= 0.75
+        ):
+            if isinstance(content, bytes):
+                raw_bytes = content
+            else:
+                raw_bytes = content.encode("utf-8")
 
-            if (
-                result.output.label.lower() == "csv"
-                and result.score >= 0.75
-            ):
-                return self.has_strong_csv_evidence(raw_bytes)
-
-        except Exception:
-            pass
+            return self.has_strong_csv_evidence(raw_bytes)
 
         return False
-
+    
     def has_strong_csv_evidence(
         self,
         content: bytes,

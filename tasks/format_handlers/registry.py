@@ -39,13 +39,14 @@ class FormatHandlerRegistry:
         self,
         content: bytes,
         current_ext: str,
+        magika_result,
     ) -> str:
 
         if current_ext != ".txt":
             handler = self._handlers.get(current_ext)
 
             if handler and hasattr(handler, "detect_extension"):
-                if handler.detect_extension(content):
+                if handler.detect_extension(content, magika_result):
                     return current_ext
 
         for extension, handler in self._handlers.items():
@@ -55,12 +56,15 @@ class FormatHandlerRegistry:
             if not hasattr(handler, "detect_extension"):
                 continue
 
-            if handler.detect_extension(content):
+            if handler.detect_extension(content, magika_result):
                 return extension
 
         text_handler = self._handlers.get(".txt")
 
-        if text_handler and text_handler.detect_extension(content):
+        if text_handler and text_handler.detect_extension(
+            content,
+            magika_result,
+        ):
             return ".txt"
 
         return current_ext

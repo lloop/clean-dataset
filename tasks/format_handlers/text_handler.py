@@ -1,11 +1,9 @@
-import re
-from magika import Magika
 
 class TextHandler:
     
     def __init__(self):
-        self.magika = Magika()
-
+        pass
+    
     def detect_character_corruption(
         self,
         content: str | bytes,
@@ -59,64 +57,12 @@ class TextHandler:
         )
         
     def detect_extension(
-            self,
-            content: str | bytes
-        ) -> bool:
-            if isinstance(content, str):
-                raw_bytes = content.encode("utf-8")
-            else:
-                raw_bytes = content
-
-            try:
-                result = self.magika.identify_bytes(raw_bytes)
-
-                # magika_is_text = result.output.is_text
-                # magika_label = result.output.label.lower()
-                # magika_score = result.score
-                
-                if result.output.is_text:
-                    return True
-
-                # if magika_score >= 0.5:
-                #     if magika_label == "rst":
-                #         return self.has_strong_rst_evidence(raw_bytes)
-
-                #     return magika_label in {
-                #         "txt",
-                #         "text",
-                #     }
-
-            except Exception:
-                pass
-
-            return False
-        
-    def has_strong_rst_evidence(
         self,
-        content: bytes,
+        content: str | bytes,
+        magika_result,
     ) -> bool:
-        try:
-            text = content.decode("utf-8", errors="ignore")
-        except Exception as error:
-            print(f"DECODE FAILED: {error}")
-            return False
-        
-        tests = {
-            "directive": bool(
-                re.search(r"(?m)^\.\. [a-zA-Z0-9_-]+::", text)
-            ),
-            "role": bool(
-                re.search(r"(?m)^:[a-zA-Z0-9_-]+:`[^`]+`", text)
-            ),
-            "reference": bool(
-                re.search(r"(?m)^\.\. _[^:]+:", text)
-            ),
-            "literal_block": bool(
-                re.search(r"(?m)^::\s*$", text)
-            ),
-        }
 
-        return sum(tests.values()) >= 2
+        return magika_result.output.is_text
     
     def detect_structure_corruption(
         self,

@@ -17,16 +17,19 @@ class AuditReporter:
     def generate_report(
         self,
         audit_summary: PipelineAuditSummary,
-        manifest: dict[str, Any],
+        manifest: dict[str, Any] | None,
     ) -> Path:
         """Writes audit_summary.json into the output directory."""
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        cross_reference = self.cross_reference.compare(
-            manifest,
-            audit_summary.file_records,
-        )
+        cross_reference = None
+
+        if manifest is not None:
+            cross_reference = self.cross_reference.compare(
+                manifest,
+                audit_summary.file_records,
+            )
 
         report_data = {
             "timestamp": datetime.now().isoformat(),
@@ -38,7 +41,11 @@ class AuditReporter:
             "clean_saved": audit_summary.clean_saved,
             "cross_reference": cross_reference,
             "file_records": [
-                asdict(record)
+                {
+                    key: value
+                    for key, value in asdict(record).items()
+                    if key != "magika_result"
+                }
                 for record in audit_summary.file_records
             ],
         }
