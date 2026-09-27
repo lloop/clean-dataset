@@ -1,6 +1,7 @@
 # tasks/cross_reference.py
 from typing import Dict, Any, Sequence, List, Union, Mapping, Optional
 from schemas.file_schema import FileRecords
+from config import STRUCTURE_LABEL_MATCHES
 
 class CrossReference:
 
@@ -78,57 +79,57 @@ class CrossReference:
     ) -> Dict[str, Any]:
 
         manifest_records = {
-            record["filename"]: {
-                "size_bytes": record.get("size_bytes", 0),
-                "labels": record.get("character_corruption_labels", []),
-            }
+            record["filename"]: set(
+                record.get("character_corruption_labels", [])
+            )
             for record in manifest.get("files", [])
             if "filename" in record
         }
 
-        manifest_corrupted = {
-            filename
-            for filename, data in manifest_records.items()
-            if data["labels"]
-        }
-
         detected_records = {
-            record.filename: record
+            record.filename: set(record.character_corruption)
             for record in file_records
-            if record.character_corruption
         }
 
-        detected_set = set(detected_records)
+        false_positives = []
+        false_negatives = []
+        correct = []
 
-        false_positives_set = detected_set - manifest_corrupted
-        false_negatives_set = manifest_corrupted - detected_set
+        for filename in manifest_records:
+            manifest_labels = manifest_records[filename]
+            detected_labels = detected_records.get(filename, set())
 
-        false_positives = [
-            {
-                "file": filename,
-                "labels": manifest_records.get(filename, {}).get("labels", []),
-                "detected_details": detected_records[filename].character_corruption,
-            }
-            for filename in sorted(false_positives_set)
-        ]
+            if manifest_labels == detected_labels:
+                if manifest_labels:
+                    correct.append(filename)
+                continue
 
-        false_negatives = [
-            {
-                "file": filename,
-                "labels": manifest_records[filename]["labels"],
-            }
-            for filename in sorted(false_negatives_set)
-        ]
+            if manifest_labels - detected_labels:
+                false_negatives.append({
+                    "file": filename,
+                    "expected": sorted(manifest_labels),
+                    "detected": sorted(detected_labels),
+                    "missing": sorted(manifest_labels - detected_labels),
+                })
+
+            if detected_labels - manifest_labels:
+                false_positives.append({
+                    "file": filename,
+                    "expected": sorted(manifest_labels),
+                    "detected": sorted(detected_labels),
+                    "unexpected": sorted(detected_labels - manifest_labels),
+                })
 
         return {
-            "manifest_count": len(manifest_corrupted),
-            "detected_count": len(detected_set),
+            "manifest_count": sum(bool(labels) for labels in manifest_records.values()),
+            "detected_count": sum(bool(labels) for labels in detected_records.values()),
+            "correct_count": len(correct),
             "false_positive_count": len(false_positives),
             "false_negative_count": len(false_negatives),
             "false_positives": false_positives,
             "false_negatives": false_negatives,
         }
-          
+            
     def compare_structure_corrupted(
         self,
         manifest: Dict[str, Any],
@@ -136,56 +137,113 @@ class CrossReference:
     ) -> Dict[str, Any]:
 
         manifest_records = {
-            record["filename"]: {
-                "size_bytes": record.get("size_bytes", 0),
-                "labels": record.get("structure_corruption_label", []),
-            }
+            record["filename"]: set(
+                record.get("structure_corruption_label", [])
+            )
             for record in manifest.get("files", [])
             if "filename" in record
         }
 
-        manifest_corrupted = {
-            filename
-            for filename, data in manifest_records.items()
-            if data["labels"]
-        }
-
         detected_records = {
-            record.filename: record
+            record.filename: set(record.structural_corruption)
             for record in file_records
-            if record.structural_corruption
         }
 
-        detected_set = set(detected_records)
+        false_positives = []
+        false_negatives = []
+        correct = []
 
-        false_positives_set = detected_set - manifest_corrupted
-        false_negatives_set = manifest_corrupted - detected_set
+        for filename in manifest_records:
+            manifest_labels = manifest_records[filename]
+            detected_labels = detected_records.get(filename, set())
 
-        false_positives = [
-            {
-                "file": filename,
-                "labels": manifest_records.get(filename, {}).get("labels", []),
-                "detected_details": detected_records[filename].structural_corruption,
-            }
-            for filename in sorted(false_positives_set)
-        ]
+            manifest_corrupted = bool(manifest_labels)
+            detected_corrupted = bool(detected_labels)
 
-        false_negatives = [
-            {
-                "file": filename,
-                "labels": manifest_records[filename]["labels"],
-            }
-            for filename in sorted(false_negatives_set)
-        ]
+            if manifest_corrupted and detected_corrupted:
+                correct.append(filename)
 
+            elif manifest_corrupted and not detected_corrupted:
+                false_negatives.append({
+                    "file": filename,
+                    "expected": sorted(manifest_labels),
+                    "detected": sorted(detected_labels),
+                })
+
+            elif not manifest_corrupted and detected_corrupted:
+                false_positives.append({
+                    "file": filename,
+                    "expected": sorted(manifest_labels),
+                    "detected": sorted(detected_labels),
+                })
+                
         return {
-            "manifest_count": len(manifest_corrupted),
-            "detected_count": len(detected_set),
+            "manifest_count": sum(bool(labels) for labels in manifest_records.values()),
+            "detected_count": sum(bool(labels) for labels in detected_records.values()),
+            "correct_count": len(correct),
             "false_positive_count": len(false_positives),
             "false_negative_count": len(false_negatives),
             "false_positives": false_positives,
             "false_negatives": false_negatives,
         }
+            
+    # def compare_structure_corrupted(
+    #     self,
+    #     manifest: Dict[str, Any],
+    #     file_records: list[FileRecords],
+    # ) -> Dict[str, Any]:
+
+    #     manifest_records = {
+    #         record["filename"]: {
+    #             "size_bytes": record.get("size_bytes", 0),
+    #             "labels": record.get("structure_corruption_label", []),
+    #         }
+    #         for record in manifest.get("files", [])
+    #         if "filename" in record
+    #     }
+
+    #     manifest_corrupted = {
+    #         filename
+    #         for filename, data in manifest_records.items()
+    #         if data["labels"]
+    #     }
+
+    #     detected_records = {
+    #         record.filename: record
+    #         for record in file_records
+    #         if record.structural_corruption
+    #     }
+
+    #     detected_set = set(detected_records)
+
+    #     false_positives_set = detected_set - manifest_corrupted
+    #     false_negatives_set = manifest_corrupted - detected_set
+
+    #     false_positives = [
+    #         {
+    #             "file": filename,
+    #             "labels": manifest_records.get(filename, {}).get("labels", []),
+    #             "detected_details": detected_records[filename].structural_corruption,
+    #         }
+    #         for filename in sorted(false_positives_set)
+    #     ]
+
+    #     false_negatives = [
+    #         {
+    #             "file": filename,
+    #             "labels": manifest_records[filename]["labels"],
+    #         }
+    #         for filename in sorted(false_negatives_set)
+    #     ]
+
+    #     return {
+    #         "manifest_count": len(manifest_corrupted),
+    #         "detected_count": len(detected_set),
+    #         "false_positive_count": len(false_positives),
+    #         "false_negative_count": len(false_negatives),
+    #         "false_positives": false_positives,
+    #         "false_negatives": false_negatives,
+    #     }
     
     def compare_extensions_scrambled(
         self,

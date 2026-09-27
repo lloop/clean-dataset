@@ -44,7 +44,6 @@ class DatasetCleaner:
         self.reporter = AuditReporter(self.clean_dir)
         self.manifest_loader = ManifestLoader(str(self.source_dir / "metadata" / "manifest.json"))
         self.deduplicator = FileDeduplicator()
-        # self.extension_detector = ExtensionDetector()
         self.character_detector = CharacterCorruptionDetector()
         self.format_handler_registry = FormatHandlerRegistry()
 
@@ -96,8 +95,7 @@ class DatasetCleaner:
                 )  
                 
             # Temporary Debugging
-            if current_ext in {".py", ".json"}:
-                print(file_path.name, current_ext, "=>", true_ext)
+            print(file_path.name, current_ext, "=>", true_ext)
             
             record.is_binary = true_ext in [".jpg", ".jpeg", ".png", ".gif", ".ico"]
 
