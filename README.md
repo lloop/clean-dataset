@@ -100,7 +100,7 @@ dataset_clean/
 - `quarantine/duplicates/` contains duplicate copies that were excluded.
 - `quarantine/corrupted_character/` contains files rejected during character-level checks.
 - `quarantine/corrupted_structure/` contains files rejected by structural validation.
-- `audit_summary.json` stores machine-readable metrics and file-level audit entries.
+- `audit_summary.json` stores machine-readable metrics and file-level audit entries. It also includes `scrambled_extension_files`, `character_corrupted_files`, and `structure_corrupted_files` arrays alongside the corresponding detection totals.
 - `audit_summary.md` provides a readable summary of the run.
 
 ## Project Layout

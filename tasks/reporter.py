@@ -35,8 +35,23 @@ class AuditReporter:
             "timestamp": datetime.now().isoformat(),
             "total_processed": audit_summary.total_processed,
             "detected_scrambled_extensions": audit_summary.corrupted_extensions,
+            "scrambled_extension_files": [
+                record.filename
+                for record in audit_summary.file_records
+                if record.extension_mismatch
+            ],
             "detected_character_corrupted": audit_summary.character_corrupted,
+            "character_corrupted_files": [
+                record.filename
+                for record in audit_summary.file_records
+                if record.character_corruption
+            ],
             "detected_structure_corrupted": audit_summary.structure_corrupted,
+            "structure_corrupted_files": [
+                record.filename
+                for record in audit_summary.file_records
+                if record.structural_corruption
+            ],
             "detected_duplicates": audit_summary.duplicates,
             "clean_saved": audit_summary.clean_saved,
             "cross_reference": cross_reference,

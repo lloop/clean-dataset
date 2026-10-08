@@ -8,7 +8,6 @@ from magika import Magika
 from schemas.audit_schema import PipelineAuditSummary
 from tasks.character_detector import CharacterCorruptionDetector
 from tasks.duplicate_detector import FileDeduplicator
-# from tasks.extension_detector import ExtensionDetector
 from tasks.quarantine import QuarantineManager
 from tasks.reporter import AuditReporter
 from tasks.manifest_loader import ManifestLoader
@@ -36,7 +35,7 @@ class DatasetCleaner:
         self.debug = debug
         self.diagnostic = diagnostic
         self.source_dir = Path(source_dir)
-        self.file_source_dir = self.source_dir / "files"
+        # self.file_source_dir = self.source_dir / "files"
         self.clean_dir = Path(clean_dir)
 
         self.audit_summary = PipelineAuditSummary()
@@ -65,7 +64,7 @@ class DatasetCleaner:
         
         quarantine_records = []
 
-        for file_path in self.file_source_dir.iterdir():
+        for file_path in self.source_dir.iterdir():
             # Skip directories or manifest file during deduplication pass
             if file_path.is_dir() or file_path.name == "manifest.json":
                 continue 
@@ -200,7 +199,7 @@ if __name__ == "__main__":
     
     # 
     parser.add_argument(
-        "-dg", 
+        "-d", 
         "--diagnostic",
         action="store_true",
         help="Files are not deleted, copied, or quarantined",
